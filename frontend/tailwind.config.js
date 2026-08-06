@@ -8,12 +8,15 @@ export default {
     extend: {
       colors: {
         'navy': '#1a1a1a',
-        'sage': '#a8b87d',
-        'gray-light': '#f5f5f5',
+        'sage': '#a8b88c',
+        'gold': '#d4a843',
+        'gray-dark': '#1e1e1e',
+        'card-dark': '#252525',
       },
       borderRadius: {
-        'xl': '1.5rem',
-        'lg': '1rem',
+        'xl': '1rem',
+        '2xl': '1.25rem',
+        '3xl': '1.5rem',
       },
     },
   },

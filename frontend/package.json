@@ -10,11 +10,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.8",
+    "chart.js": "^4.5.1",
+    "date-fns": "^4.4.0",
+    "lucide-react": "^1.26.0",
     "react": "^19.2.4",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.4",
     "react-hook-form": "^7.51.0",
-    "react-router-dom": "^6.21.0",
-    "axios": "^1.6.2"
+    "react-hot-toast": "^2.6.0",
+    "react-router-dom": "^6.21.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

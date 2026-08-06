@@ -7,7 +7,8 @@ html, body, #root {
   padding: 0;
   width: 100%;
   height: 100%;
-  background-color: #e8e8e0;
+  background-color: #1a1a1a;
+  color: #e5e7eb;
 }
 
 * {
@@ -17,7 +18,7 @@ html, body, #root {
 }
 
 body {
-  background-color: #e8e8e0;
+  background-color: #1a1a1a;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
@@ -25,21 +26,21 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar */
+/* Custom dark scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #1e1e1e;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #a8b87d;
-  border-radius: 4px;
+  background: #3a3a3a;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #95a56f;
+  background: #555555;
 }
-
