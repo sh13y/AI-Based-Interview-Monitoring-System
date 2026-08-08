@@ -1,21 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl =
-  import.meta.env.VITE_SUPABASE_URL ||
-  import.meta.env.NEXT_PUBLIC_SUPABASE_URL;
+/**
+ * Supabase Client Configuration
+ *
+ * Reads credentials from Vite environment variables (.env.local).
+ * If no credentials are set, the app falls back to demo mode with mock data.
+ */
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const supabaseAnonKey =
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-// Create Supabase client
+/** @type {import('@supabase/supabase-js').SupabaseClient | null} */
 export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
-// Check if Supabase env credentials exist
+/** Returns true when Supabase credentials are present and the client is initialized. */
 export const isSupabaseConfigured = () => {
   return !!(supabaseUrl && supabaseAnonKey && supabase);
 };

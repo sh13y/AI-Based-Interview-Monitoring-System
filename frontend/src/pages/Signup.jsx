@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { PasswordInput, EmailInput, TextInput, FormError, FileUploadInput } from '../components/FormComponents';
+import { PasswordInput, EmailInput, TextInput, FormError, FileUploadInput } from '../components/ui/FormComponents';
 
 const Signup = () => {
   const { control, handleSubmit, formState: { errors }, watch } = useForm({

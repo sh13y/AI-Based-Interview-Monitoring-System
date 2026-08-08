@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FormError } from '../components/FormComponents';
+import { FormError } from '../components/ui/FormComponents';
 
 const Login = () => {
   const { control, handleSubmit, formState: { errors } } = useForm({
