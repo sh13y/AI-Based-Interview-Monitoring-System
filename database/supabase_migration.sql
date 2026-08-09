@@ -192,12 +192,12 @@ $$;
 -- ============================================================
 
 INSERT INTO public.candidates (id, full_name, email, position, status, date_registered, score, notes, keywords) VALUES
-  ('11111111-1111-1111-1111-111111111111', 'Jenny Adams', 'jenny.adams@email.com', 'Software Engineer', 'Evaluated', '2026-01-23', 90, 'Strong technical background with 5 years experience.', ARRAY['JavaScript', 'React', 'Node.js']),
-  ('22222222-2222-2222-2222-222222222222', 'Mark Chen', 'mark.chen@email.com', 'Marketing Manager', 'In Progress', '2026-02-14', 89, 'Excellent communication skills, leadership potential.', ARRAY['SEO', 'Content Strategy', 'Analytics']),
-  ('33333333-3333-3333-3333-333333333333', 'Raj Patel', 'raj.patel@email.com', 'HR Coordinator', 'Pending Review', '2026-04-02', 77, 'Good organizational skills, needs more experience.', ARRAY['Recruitment', 'Onboarding', 'HRIS']),
-  ('44444444-4444-4444-4444-444444444444', 'James Wong', 'james.wong@email.com', 'Data Analyst', 'Rejected', '2026-03-03', 68, 'Technical skills need improvement.', ARRAY['SQL', 'Python', 'Tableau']),
-  ('55555555-5555-5555-5555-555555555555', 'Sarah White', 'sarah.white@email.com', 'Product Manager', 'Evaluated', '2026-01-11', 85, 'Great product sense and stakeholder management.', ARRAY['Agile', 'Roadmap', 'User Research']),
-  ('66666666-6666-6666-6666-666666666666', 'Allison Martinez', 'allison.martinez@email.com', 'AI Specialist', 'Evaluated', '2026-02-06', 80, 'Strong ML background, good at explaining complex topics.', ARRAY['Machine Learning', 'NLP', 'TensorFlow'])
+  ('11111111-1111-1111-1111-111111111111', 'Janith Perera', 'janith.perera@email.com', 'Software Engineer', 'Evaluated', '2026-01-23', 90, 'Strong technical background with 5 years experience.', ARRAY['JavaScript', 'React', 'Node.js']),
+  ('22222222-2222-2222-2222-222222222222', 'Malith Fernando', 'malith.fernando@email.com', 'Marketing Manager', 'In Progress', '2026-02-14', 89, 'Excellent communication skills, leadership potential.', ARRAY['SEO', 'Content Strategy', 'Analytics']),
+  ('33333333-3333-3333-3333-333333333333', 'Ruwan Jayasinghe', 'ruwan.jayasinghe@email.com', 'HR Coordinator', 'Pending Review', '2026-04-02', 77, 'Good organizational skills, needs more experience.', ARRAY['Recruitment', 'Onboarding', 'HRIS']),
+  ('44444444-4444-4444-4444-444444444444', 'Nuwan Gunawardena', 'nuwan.gunawardena@email.com', 'Data Analyst', 'Rejected', '2026-03-03', 68, 'Technical skills need improvement.', ARRAY['SQL', 'Python', 'Tableau']),
+  ('55555555-5555-5555-5555-555555555555', 'Sachini Wickramasinghe', 'sachini.w@email.com', 'Product Manager', 'Evaluated', '2026-01-11', 85, 'Great product sense and stakeholder management.', ARRAY['Agile', 'Roadmap', 'User Research']),
+  ('66666666-6666-6666-6666-666666666666', 'Anuki Bandara', 'anuki.bandara@email.com', 'AI Specialist', 'Evaluated', '2026-02-06', 80, 'Strong ML background, good at explaining complex topics.', ARRAY['Machine Learning', 'NLP', 'TensorFlow'])
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.question_bank (id, question_text, category, difficulty, keywords, ai_scoring_enabled, weights) VALUES
@@ -220,7 +220,7 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.audit_logs (user_email, action, entity_type, details) VALUES
   ('admin@modernmatrix.com', 'USER_LOGIN', 'auth', 'Admin logged in successfully'),
-  ('admin@modernmatrix.com', 'CANDIDATE_CREATED', 'candidate', 'Added candidate: Jenny Adams'),
-  ('admin@modernmatrix.com', 'SESSION_STARTED', 'interview_session', 'Started session for Jenny Adams'),
-  ('admin@modernmatrix.com', 'SESSION_ENDED', 'interview_session', 'Completed session — duration: 19m 45s'),
+  ('admin@modernmatrix.com', 'CANDIDATE_CREATED', 'candidate', 'Added candidate: Janith Perera'),
+  ('admin@modernmatrix.com', 'SESSION_STARTED', 'interview_session', 'Started session for Janith Perera'),
+  ('admin@modernmatrix.com', 'SESSION_ENDED', 'interview_session', 'Completed session - duration: 19m 45s'),
   ('admin@modernmatrix.com', 'QUESTION_CREATED', 'question_bank', 'Added: Python experience question');

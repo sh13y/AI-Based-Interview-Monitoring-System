@@ -109,6 +109,10 @@ const Candidates = () => {
   };
 
   const handleDeleteCandidate = async (id) => {
+    if (user?.role !== 'Admin') {
+      toast.error('Access Denied: Only System Administrators can delete candidates.');
+      return;
+    }
     const target = candidates.find(c => c.id === id);
     if (isSupabaseConfigured()) {
       await supabase.from('candidates').delete().eq('id', id);
@@ -121,6 +125,7 @@ const Candidates = () => {
       details: `Deleted candidate: ${target?.full_name || id}`,
       userEmail: user?.email,
     });
+    toast.success('Candidate deleted successfully.');
   };
 
   const filteredCandidates = candidates.filter(c => {
@@ -233,12 +238,14 @@ const Candidates = () => {
                 </td>
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-1.5 justify-end opacity-0 group-hover:opacity-100 transition">
-                    <Link to={`/reports/${c.id}`} className="p-1.5 text-gray-400 hover:text-[#a8b88c] hover:bg-[#a8b88c]/10 rounded-lg transition">
+                    <Link to={`/reports/${c.id}`} className="p-1.5 text-gray-400 hover:text-[#a8b88c] hover:bg-[#a8b88c]/10 rounded-lg transition" title="View Candidate Report">
                       <Eye className="w-4 h-4" />
                     </Link>
-                    <button onClick={() => handleDeleteCandidate(c.id)} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {user?.role === 'Admin' && (
+                      <button onClick={() => handleDeleteCandidate(c.id)} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition" title="Delete Candidate (Admin Only)">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

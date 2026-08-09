@@ -194,12 +194,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const switchRole = (newRole) => {
+  const switchRole = async (newRole) => {
     const activeUser = user || dummyUser;
     const updated = { ...activeUser, role: newRole };
     setUser(updated);
     localStorage.setItem('mm_user_current', JSON.stringify(updated));
-    writeAuditLog({
+
+    if (isSupabaseConfigured() && activeUser.id) {
+      try {
+        await supabase
+          .from('users')
+          .update({ role: newRole })
+          .eq('id', activeUser.id);
+      } catch (err) {
+        console.warn('[Auth] Could not update user role in Supabase:', err.message);
+      }
+    }
+
+    await writeAuditLog({
       action: 'ROLE_SWITCHED',
       entityType: 'auth',
       details: `Switched active user role to ${newRole}`,

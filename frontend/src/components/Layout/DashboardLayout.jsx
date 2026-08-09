@@ -205,33 +205,6 @@ const DashboardLayout = ({ children }) => {
 
                   {/* Menu Options */}
                   <div className="p-2 space-y-1">
-                    {/* Role Switcher Option (FR-02 Demo Helper) */}
-                    <div className="px-3 py-2 bg-[#252525] rounded-lg space-y-1.5 mb-1">
-                      <p className="text-gray-400 text-[10px] uppercase tracking-wider font-semibold">Switch Active Role:</p>
-                      <div className="flex gap-1.5">
-                        <button
-                          onClick={() => switchRole('Admin')}
-                          className={`flex-1 py-1 px-2 text-[10px] font-bold rounded transition ${
-                            displayRole === 'Admin'
-                              ? 'bg-[#a8b88c] text-gray-900'
-                              : 'bg-[#1e1e1e] text-gray-400 hover:text-gray-200'
-                          }`}
-                        >
-                          Admin
-                        </button>
-                        <button
-                          onClick={() => switchRole('HR_Manager')}
-                          className={`flex-1 py-1 px-2 text-[10px] font-bold rounded transition ${
-                            displayRole === 'HR_Manager'
-                              ? 'bg-[#a8b88c] text-gray-900'
-                              : 'bg-[#1e1e1e] text-gray-400 hover:text-gray-200'
-                          }`}
-                        >
-                          HR Manager
-                        </button>
-                      </div>
-                    </div>
-
                     <Link
                       to="/settings"
                       onClick={() => setShowProfileMenu(false)}
