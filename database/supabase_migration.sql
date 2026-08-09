@@ -198,7 +198,10 @@ INSERT INTO public.candidates (id, full_name, email, position, status, date_regi
   ('44444444-4444-4444-4444-444444444444', 'Nuwan Gunawardena', 'nuwan.gunawardena@email.com', 'Data Analyst', 'Rejected', '2026-03-03', 68, 'Technical skills need improvement.', ARRAY['SQL', 'Python', 'Tableau']),
   ('55555555-5555-5555-5555-555555555555', 'Sachini Wickramasinghe', 'sachini.w@email.com', 'Product Manager', 'Evaluated', '2026-01-11', 85, 'Great product sense and stakeholder management.', ARRAY['Agile', 'Roadmap', 'User Research']),
   ('66666666-6666-6666-6666-666666666666', 'Anuki Bandara', 'anuki.bandara@email.com', 'AI Specialist', 'Evaluated', '2026-02-06', 80, 'Strong ML background, good at explaining complex topics.', ARRAY['Machine Learning', 'NLP', 'TensorFlow'])
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET 
+  full_name = EXCLUDED.full_name,
+  email = EXCLUDED.email,
+  position = EXCLUDED.position;
 
 INSERT INTO public.question_bank (id, question_text, category, difficulty, keywords, ai_scoring_enabled, weights) VALUES
   ('a1111111-1111-1111-1111-111111111111', 'Can you describe your experience with coding in Python?', 'Technical', 'Medium', ARRAY['Python', 'Programming', 'Experience'], true, '{"honesty": 50, "attitude": 50, "confidence": 50, "relevance": 50}'),
