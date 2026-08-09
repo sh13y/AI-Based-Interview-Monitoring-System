@@ -84,14 +84,14 @@ const LiveInterview = () => {
       const candidateIdParam = searchParams.get('candidateId');
       const roundParam = searchParams.get('round');
 
-      cand = dummyCandidates.find((c) => c.id === candidateIdParam) || dummyCandidates[1]; // default to Mark Chen if not specified
+      cand = dummyCandidates.find((c) => c.id === candidateIdParam) || dummyCandidates[0]; // default to first candidate if not specified
       found = {
         id: `ses-live-${Date.now()}`,
         candidate_id: cand.id,
         candidate_name: cand.full_name,
         position: cand.position,
         round: roundParam || 'Round 1',
-        evaluator_name: user?.first_name ? `${user.first_name} ${user.last_name || ''}` : 'Jessica Smith',
+        evaluator_name: user?.first_name ? `${user.first_name} ${user.last_name || ''}` : 'Kasun Perera',
         status: 'In Progress',
         duration_seconds: 0,
         questions_answered: 0,

@@ -43,14 +43,14 @@ const DashboardLayout = ({ children }) => {
     {
       id: 1,
       title: 'Interview Completed',
-      desc: 'Jenny Adams completed Round 1 session with score 90%',
+      desc: 'Janith Perera completed Round 1 session with score 90%',
       time: '10m ago',
       type: 'success',
     },
     {
       id: 2,
       title: 'New Candidate Registered',
-      desc: 'Mark Chen applied for Marketing Manager position',
+      desc: 'Malith Fernando applied for Marketing Manager position',
       time: '1h ago',
       type: 'info',
     },
@@ -71,7 +71,7 @@ const DashboardLayout = ({ children }) => {
 
   const displayName = user?.first_name
     ? `${user.first_name} ${user.last_name || ''}`
-    : 'Jessica Smith';
+    : 'Kasun Perera';
   const displayEmail = user?.email || 'admin@modernmatrix.com';
   const displayRole = user?.role || 'Admin';
 

@@ -6,8 +6,8 @@ const Settings = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [profileData, setProfileData] = useState({
-    firstName: user?.first_name || 'Jessica',
-    lastName: user?.last_name || 'Smith',
+    firstName: user?.first_name || 'Kasun',
+    lastName: user?.last_name || 'Perera',
     email: user?.email || 'admin@modernmatrix.com',
     role: user?.role || 'Admin',
   });

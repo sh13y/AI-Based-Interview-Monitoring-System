@@ -154,9 +154,9 @@ const Dashboard = () => {
         <div className="col-span-12 lg:col-span-5">
           <h2 className="text-gray-400 text-sm font-semibold mb-4">Recent Candidates</h2>
           <div className="bg-[#252525] rounded-xl p-5 border border-gray-800/50">
-            <RecentCandidate name="Allison Martinez" role="AI Specialist" time="Evaluated Today" />
-            <RecentCandidate name="Raj Patel" role="HR Coordinator" time="Evaluated 3h ago" />
-            <RecentCandidate name="James Wong" role="Data Analyst" time="Evaluated Yesterday" />
+            <RecentCandidate name="Anuki Bandara" role="AI Specialist" time="Evaluated Today" />
+            <RecentCandidate name="Ruwan Jayasinghe" role="HR Coordinator" time="Evaluated 3h ago" />
+            <RecentCandidate name="Nuwan Gunawardena" role="Data Analyst" time="Evaluated Yesterday" />
           </div>
         </div>
       </div>

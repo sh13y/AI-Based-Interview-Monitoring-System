@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }) => {
         }
       });
     } else {
-      // Dummy mode — check localStorage
+      // Dummy mode - check localStorage
       const storedAuth = localStorage.getItem('mm_authenticated');
       if (storedAuth === 'true') {
         const storedUser = localStorage.getItem('mm_user_current');
