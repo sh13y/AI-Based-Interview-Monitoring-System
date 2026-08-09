@@ -1,6 +1,5 @@
 <div align="center">
   <img src="frontend/public/logo.png" alt="Modern Matrix Logo" width="200" />
-  <h1>Modern Matrix</h1>
   <p><strong>AI-Based Interview Monitoring System</strong></p>
 </div>
 
@@ -52,9 +51,32 @@ Modern Matrix is an advanced, AI-powered interview monitoring platform designed 
 * **HR Manager:** Access to view candidates, monitor interviews, and generate reports.
 * **Candidate:** Restricted access to participate in assigned interview sessions.
 
-## Project Structure
-* `/frontend`: Contains the React web application.
-* `/database`: Contains SQL scripts for database configuration.
+## Codebase Architecture
+
+The project is structured into frontend client and backend configuration directories.
+
+### Directory Breakdown
+
+#### `/frontend` (React + Vite App)
+This is the core frontend application where all user interfaces and client-side logic reside.
+* **`src/components/`**: Reusable UI components.
+  * `Layout/`: Structural components like `DashboardLayout.jsx`, `Sidebar.jsx`, and `Header.jsx`.
+  * `Modals/`: Interactive popups and dialogs (e.g., action confirmations).
+  * `ui/`: Core design system components like `FormComponents.jsx` (inputs, buttons, secure toggles).
+* **`src/pages/`**: Main application views mapped to specific routes.
+  * `Dashboard.jsx`: The central analytics and data hub.
+  * `LiveInterview.jsx`: The real-time AI interview monitoring interface.
+  * `Login.jsx` & `Signup.jsx`: Application authentication flows.
+  * `SystemMaintenance.jsx`: Admin-only configuration and oversight area.
+* **`src/context/`**: Global state management.
+  * `AuthContext.jsx`: Handles user authentication, session persistence, and RBAC (Role-Based Access Control) restrictions.
+* **`src/lib/`**: Utility functions and shared resources.
+  * `dummyData.js`: Centralized mock data used for development and offline testing.
+* **`src/styles/`**: Global CSS stylesheets including design tokens and layout utility classes.
+
+#### `/database` (Supabase configuration)
+Contains the essential scripts required to initialize the backend data architecture.
+* **`supabase_migration.sql`**: The primary SQL migration file. It defines the PostgreSQL schemas, configures Row Level Security (RLS) policies, and handles seed data insertion with conflict resolution (`ON CONFLICT DO UPDATE`) for safe execution.
 
 ## License
 This project is proprietary and confidential.
