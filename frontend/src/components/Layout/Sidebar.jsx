@@ -39,7 +39,7 @@ const Sidebar = ({ onLogout }) => {
       <div className="px-5 py-4 border-b border-gray-800">
         <div className="flex items-center gap-2.5 mb-2">
           <div className="w-8 h-8 rounded-lg bg-[#2a2a2a] border border-gray-700/60 flex items-center justify-center overflow-hidden p-1">
-            <img src="/logo.png" alt="Modern Matrix" className="w-full h-full object-contain" />
+            <img src="/favicon.svg" alt="Modern Matrix" className="w-full h-full object-contain" />
           </div>
           <span className="text-gray-200 font-semibold text-sm tracking-wide">Modern Matrix</span>
         </div>
