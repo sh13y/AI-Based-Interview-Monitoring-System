@@ -4,6 +4,29 @@ import { dummyUser } from '../lib/dummyData';
 
 const AuthContext = createContext();
 
+const formatUserProfile = (sessionUser, dbUser) => {
+  if (!sessionUser && !dbUser) return null;
+  const meta = sessionUser?.user_metadata || {};
+  
+  // Resolve actual role (ignore Supabase internal 'authenticated' JWT role string)
+  let userRole = dbUser?.role || meta.role || 'HR_Manager';
+  if (userRole === 'authenticated') {
+    userRole = meta.role || 'HR_Manager';
+  }
+
+  return {
+    id: dbUser?.id || sessionUser?.id,
+    email: dbUser?.email || sessionUser?.email,
+    first_name: dbUser?.first_name || meta.first_name || 'User',
+    last_name: dbUser?.last_name || meta.last_name || '',
+    user_id_field: dbUser?.user_id_field || meta.user_id_field || '',
+    role: userRole,
+    avatar_url: dbUser?.profile_picture_url || meta.profile_picture_url || null,
+    created_at: dbUser?.created_at || sessionUser?.created_at,
+    user_metadata: meta,
+  };
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -17,14 +40,13 @@ export const AuthProvider = ({ children }) => {
     if (isSupabaseConfigured()) {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        // Fetch public user profile
         const { data: dbUser } = await supabase
           .from('users')
           .select('*')
           .eq('id', session.user.id)
           .maybeSingle();
 
-        setUser(dbUser ? { ...session.user, ...dbUser } : session.user);
+        setUser(formatUserProfile(session.user, dbUser));
         setIsAuthenticated(true);
       }
       supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -35,7 +57,7 @@ export const AuthProvider = ({ children }) => {
             .eq('id', session.user.id)
             .maybeSingle();
 
-          setUser(dbUser ? { ...session.user, ...dbUser } : session.user);
+          setUser(formatUserProfile(session.user, dbUser));
           setIsAuthenticated(true);
         } else {
           setUser(null);
@@ -60,7 +82,6 @@ export const AuthProvider = ({ children }) => {
     if (isSupabaseConfigured()) {
       let emailToUse = inputIdentifier;
 
-      // If input doesn't contain '@', try looking up email in public.users table by user_id_field
       if (!emailToUse.includes('@')) {
         const { data: userData } = await supabase
           .from('users')
@@ -78,7 +99,6 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      // Authenticate with email & password
       const { data, error } = await supabase.auth.signInWithPassword({
         email: emailToUse,
         password: credentials.password,
@@ -88,18 +108,13 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: error.message };
       }
 
-      // Fetch profile from public.users table
-      let fullProfile = data.user;
       const { data: dbUser } = await supabase
         .from('users')
         .select('*')
         .eq('id', data.user.id)
         .maybeSingle();
 
-      if (dbUser) {
-        fullProfile = { ...data.user, ...dbUser };
-      }
-
+      const fullProfile = formatUserProfile(data.user, dbUser);
       setUser(fullProfile);
       setIsAuthenticated(true);
       await writeAuditLog({
@@ -110,7 +125,6 @@ export const AuthProvider = ({ children }) => {
       });
       return { success: true, data: fullProfile };
     } else {
-      // Dummy mode login - match by email or userId
       localStorage.setItem('mm_authenticated', 'true');
       const savedUserKey = localStorage.getItem(`mm_user_${inputIdentifier}`);
       let userObj;
@@ -118,7 +132,6 @@ export const AuthProvider = ({ children }) => {
       if (savedUserKey) {
         userObj = JSON.parse(savedUserKey);
       } else {
-        // Default to dummyUser with input email
         userObj = { ...dummyUser, email: inputIdentifier.includes('@') ? inputIdentifier : dummyUser.email };
       }
 
@@ -136,12 +149,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signup = async (formData) => {
-    // Auto-generate system User ID if not provided (e.g. jessica.smith)
     const generatedUserId = formData.userId || `${formData.firstName.toLowerCase()}.${formData.lastName.toLowerCase()}`;
     const selectedRole = formData.role || 'HR_Manager';
 
     if (isSupabaseConfigured()) {
-      // 1. Create Auth user in Supabase
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -159,7 +170,6 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: error.message };
       }
 
-      // 2. Insert record into public.users table
       if (data?.user) {
         const { error: dbError } = await supabase.from('users').upsert([{
           id: data.user.id,
@@ -174,11 +184,23 @@ export const AuthProvider = ({ children }) => {
         if (dbError) {
           console.warn('Warning: Could not insert into public.users table:', dbError.message);
         }
+
+        // Set user immediately if session exists
+        if (data.session) {
+          setUser(formatUserProfile(data.user, {
+            id: data.user.id,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            user_id_field: generatedUserId,
+            email: formData.email,
+            role: selectedRole,
+          }));
+          setIsAuthenticated(true);
+        }
       }
 
       return { success: true, data };
     } else {
-      // Dummy mode signup
       const newUser = {
         id: `usr-${Date.now()}`,
         email: formData.email,
@@ -190,6 +212,10 @@ export const AuthProvider = ({ children }) => {
       };
       localStorage.setItem(`mm_user_${formData.email}`, JSON.stringify(newUser));
       localStorage.setItem(`mm_user_${generatedUserId}`, JSON.stringify(newUser));
+      localStorage.setItem('mm_user_current', JSON.stringify(newUser));
+      localStorage.setItem('mm_authenticated', 'true');
+      setUser(newUser);
+      setIsAuthenticated(true);
       return { success: true, data: { message: 'Account created successfully!' } };
     }
   };
@@ -236,7 +262,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const value = {
-    user: user || dummyUser,
+    user: user || (isAuthenticated ? null : dummyUser),
     isAuthenticated,
     isLoading,
     login,
