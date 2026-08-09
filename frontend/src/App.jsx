@@ -13,7 +13,8 @@ import Reports from './pages/Reports';
 import CandidateReport from './pages/CandidateReport';
 import SystemMaintenance from './pages/SystemMaintenance';
 import Settings from './pages/Settings';
-import { ProtectedRoute } from './components/Layout/DashboardLayout';
+import { ProtectedRoute, AdminRoute } from './components/Layout/DashboardLayout';
+
 
 function App() {
   return (
@@ -85,9 +86,9 @@ function App() {
           <Route
             path="/system"
             element={
-              <ProtectedRoute>
+              <AdminRoute>
                 <SystemMaintenance />
-              </ProtectedRoute>
+              </AdminRoute>
             }
           />
           <Route

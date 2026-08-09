@@ -11,7 +11,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { dummyCandidates, dummyBehavioralScores, dummyInterviewSessions } from '../lib/dummyData';
+import { dummyCandidates, dummyBehavioralScores, dummyInterviewSessions, dummyTranscripts } from '../lib/dummyData';
 
 ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 
@@ -168,6 +168,22 @@ const CandidateReport = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Transcript Output Section (FR-10) */}
+      <div className="bg-[#252525] rounded-xl p-6 border border-gray-800 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Target className="w-5 h-5 text-[#d4a843]" />
+            <h3 className="text-white text-base font-bold">Interview Transcript (OpenAI Whisper)</h3>
+          </div>
+          <span className="px-2.5 py-1 bg-[#a8b88c]/20 text-[#a8b88c] border border-[#a8b88c]/30 text-xs rounded-full font-semibold">
+            WER: 5.06% · Accuracy: 94.94%
+          </span>
+        </div>
+        <pre className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap font-mono bg-[#1e1e1e] rounded-lg p-4 border border-gray-800 max-h-64 overflow-y-auto">
+          {dummyTranscripts[session.id] || dummyTranscripts['ses-001']}
+        </pre>
       </div>
 
       {/* Interview Session Summary */}

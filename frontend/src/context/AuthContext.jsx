@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, writeAuditLog } from '../lib/supabase';
 import { dummyUser } from '../lib/dummyData';
 
 const AuthContext = createContext();
@@ -55,15 +55,17 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (credentials) => {
-    if (isSupabaseConfigured()) {
-      let emailToUse = credentials.userId;
+    const inputIdentifier = credentials.email || credentials.userId || '';
 
-      // If input is User ID (no '@'), look up email in public.users table
+    if (isSupabaseConfigured()) {
+      let emailToUse = inputIdentifier;
+
+      // If input doesn't contain '@', try looking up email in public.users table by user_id_field
       if (!emailToUse.includes('@')) {
-        const { data: userData, error: userErr } = await supabase
+        const { data: userData } = await supabase
           .from('users')
           .select('email')
-          .eq('user_id_field', credentials.userId)
+          .eq('user_id_field', inputIdentifier)
           .maybeSingle();
 
         if (userData && userData.email) {
@@ -71,7 +73,7 @@ export const AuthProvider = ({ children }) => {
         } else {
           return {
             success: false,
-            error: `User ID "${credentials.userId}" not found. Please check your User ID or sign up.`
+            error: `Account with identifier "${inputIdentifier}" not found. Please check your email or sign up.`
           };
         }
       }
@@ -100,20 +102,44 @@ export const AuthProvider = ({ children }) => {
 
       setUser(fullProfile);
       setIsAuthenticated(true);
+      await writeAuditLog({
+        action: 'USER_LOGIN',
+        entityType: 'auth',
+        details: `User logged in: ${fullProfile.email}`,
+        userEmail: fullProfile.email,
+      });
       return { success: true, data: fullProfile };
     } else {
-      // Dummy mode login
+      // Dummy mode login - match by email or userId
       localStorage.setItem('mm_authenticated', 'true');
-      const savedUser = localStorage.getItem(`mm_user_${credentials.userId}`);
-      const userObj = savedUser ? JSON.parse(savedUser) : dummyUser;
+      const savedUserKey = localStorage.getItem(`mm_user_${inputIdentifier}`);
+      let userObj;
+
+      if (savedUserKey) {
+        userObj = JSON.parse(savedUserKey);
+      } else {
+        // Default to dummyUser with input email
+        userObj = { ...dummyUser, email: inputIdentifier.includes('@') ? inputIdentifier : dummyUser.email };
+      }
+
       localStorage.setItem('mm_user_current', JSON.stringify(userObj));
       setUser(userObj);
       setIsAuthenticated(true);
+      await writeAuditLog({
+        action: 'USER_LOGIN',
+        entityType: 'auth',
+        details: `User logged in: ${userObj.email}`,
+        userEmail: userObj.email,
+      });
       return { success: true, data: userObj };
     }
   };
 
   const signup = async (formData) => {
+    // Auto-generate system User ID if not provided (e.g. jessica.smith)
+    const generatedUserId = formData.userId || `${formData.firstName.toLowerCase()}.${formData.lastName.toLowerCase()}`;
+    const selectedRole = formData.role || 'HR_Manager';
+
     if (isSupabaseConfigured()) {
       // 1. Create Auth user in Supabase
       const { data, error } = await supabase.auth.signUp({
@@ -123,7 +149,8 @@ export const AuthProvider = ({ children }) => {
           data: {
             first_name: formData.firstName,
             last_name: formData.lastName,
-            user_id_field: formData.userId,
+            user_id_field: generatedUserId,
+            role: selectedRole,
           }
         }
       });
@@ -138,9 +165,9 @@ export const AuthProvider = ({ children }) => {
           id: data.user.id,
           first_name: formData.firstName,
           last_name: formData.lastName,
-          user_id_field: formData.userId,
+          user_id_field: generatedUserId,
           email: formData.email,
-          role: 'HR_Manager',
+          role: selectedRole,
           profile_picture_url: formData.profilePicture || null,
         }]);
 
@@ -157,16 +184,36 @@ export const AuthProvider = ({ children }) => {
         email: formData.email,
         first_name: formData.firstName,
         last_name: formData.lastName,
-        user_id_field: formData.userId,
-        role: 'HR_Manager',
+        user_id_field: generatedUserId,
+        role: selectedRole,
         created_at: new Date().toISOString(),
       };
-      localStorage.setItem(`mm_user_${formData.userId}`, JSON.stringify(newUser));
+      localStorage.setItem(`mm_user_${formData.email}`, JSON.stringify(newUser));
+      localStorage.setItem(`mm_user_${generatedUserId}`, JSON.stringify(newUser));
       return { success: true, data: { message: 'Account created successfully!' } };
     }
   };
 
+  const switchRole = (newRole) => {
+    const activeUser = user || dummyUser;
+    const updated = { ...activeUser, role: newRole };
+    setUser(updated);
+    localStorage.setItem('mm_user_current', JSON.stringify(updated));
+    writeAuditLog({
+      action: 'ROLE_SWITCHED',
+      entityType: 'auth',
+      details: `Switched active user role to ${newRole}`,
+      userEmail: updated.email,
+    });
+  };
+
   const logout = async () => {
+    await writeAuditLog({
+      action: 'USER_LOGOUT',
+      entityType: 'auth',
+      details: `User logged out: ${user?.email || 'unknown'}`,
+      userEmail: user?.email,
+    });
     if (isSupabaseConfigured()) {
       await supabase.auth.signOut();
     }
@@ -183,6 +230,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     signup,
+    switchRole,
   };
 
   return (

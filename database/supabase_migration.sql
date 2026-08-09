@@ -80,6 +80,18 @@ CREATE TABLE IF NOT EXISTS public.transcripts (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 7. AUDIT LOGS TABLE (FR-21 System Audit Logging)
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  user_email VARCHAR(255),
+  action VARCHAR(100) NOT NULL,
+  entity_type VARCHAR(50),
+  entity_id VARCHAR(255),
+  details TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- Enable RLS for all tables
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
@@ -87,41 +99,98 @@ ALTER TABLE public.question_bank ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.interview_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.behavioral_scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transcripts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Allow authenticated/anon read & write access
+-- Drop existing policies before recreating
 DROP POLICY IF EXISTS "Public read candidates" ON public.candidates;
 DROP POLICY IF EXISTS "Public insert candidates" ON public.candidates;
+DROP POLICY IF EXISTS "Public update candidates" ON public.candidates;
+DROP POLICY IF EXISTS "Public delete candidates" ON public.candidates;
 DROP POLICY IF EXISTS "Public read question_bank" ON public.question_bank;
 DROP POLICY IF EXISTS "Public insert question_bank" ON public.question_bank;
+DROP POLICY IF EXISTS "Public delete question_bank" ON public.question_bank;
 DROP POLICY IF EXISTS "Public read interview_sessions" ON public.interview_sessions;
 DROP POLICY IF EXISTS "Public insert interview_sessions" ON public.interview_sessions;
 DROP POLICY IF EXISTS "Public read behavioral_scores" ON public.behavioral_scores;
 DROP POLICY IF EXISTS "Public insert behavioral_scores" ON public.behavioral_scores;
 DROP POLICY IF EXISTS "Public read transcripts" ON public.transcripts;
+DROP POLICY IF EXISTS "Public insert transcripts" ON public.transcripts;
 DROP POLICY IF EXISTS "Public read users" ON public.users;
 DROP POLICY IF EXISTS "Public insert users" ON public.users;
 DROP POLICY IF EXISTS "Public update users" ON public.users;
+DROP POLICY IF EXISTS "Public read audit_logs" ON public.audit_logs;
+DROP POLICY IF EXISTS "Public insert audit_logs" ON public.audit_logs;
 
+-- Candidate policies
 CREATE POLICY "Public read candidates" ON public.candidates FOR SELECT USING (true);
 CREATE POLICY "Public insert candidates" ON public.candidates FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update candidates" ON public.candidates FOR UPDATE USING (true);
+CREATE POLICY "Public delete candidates" ON public.candidates FOR DELETE USING (true);
+
+-- Question bank policies
 CREATE POLICY "Public read question_bank" ON public.question_bank FOR SELECT USING (true);
 CREATE POLICY "Public insert question_bank" ON public.question_bank FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public delete question_bank" ON public.question_bank FOR DELETE USING (true);
+
+-- Interview session policies
 CREATE POLICY "Public read interview_sessions" ON public.interview_sessions FOR SELECT USING (true);
 CREATE POLICY "Public insert interview_sessions" ON public.interview_sessions FOR INSERT WITH CHECK (true);
+
+-- Behavioral score policies
 CREATE POLICY "Public read behavioral_scores" ON public.behavioral_scores FOR SELECT USING (true);
 CREATE POLICY "Public insert behavioral_scores" ON public.behavioral_scores FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public read transcripts" ON public.transcripts FOR SELECT USING (true);
 
--- Full access to public.users for auth & lookup
+-- Transcript policies
+CREATE POLICY "Public read transcripts" ON public.transcripts FOR SELECT USING (true);
+CREATE POLICY "Public insert transcripts" ON public.transcripts FOR INSERT WITH CHECK (true);
+
+-- User policies
 CREATE POLICY "Public read users" ON public.users FOR SELECT USING (true);
 CREATE POLICY "Public insert users" ON public.users FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public update users" ON public.users FOR UPDATE USING (true);
 
+-- Audit log policies
+CREATE POLICY "Public read audit_logs" ON public.audit_logs FOR SELECT USING (true);
+CREATE POLICY "Public insert audit_logs" ON public.audit_logs FOR INSERT WITH CHECK (true);
+
 -- ============================================================
--- SEED DUMMY DATA INTO SUPABASE DB
+-- FR-20: AUTOMATED DATA PURGE FUNCTION
+-- Removes interview data older than 30 days.
+-- Call via Supabase RPC: supabase.rpc('purge_expired_records')
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.purge_expired_records()
+RETURNS TABLE(deleted_sessions INT, deleted_scores INT, deleted_transcripts INT)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  cutoff_date TIMESTAMP WITH TIME ZONE := NOW() - INTERVAL '30 days';
+  v_sessions INT := 0;
+  v_scores   INT := 0;
+  v_transcripts INT := 0;
+BEGIN
+  DELETE FROM public.transcripts
+  WHERE session_id IN (
+    SELECT id FROM public.interview_sessions WHERE session_date < cutoff_date
+  );
+  GET DIAGNOSTICS v_transcripts = ROW_COUNT;
+
+  DELETE FROM public.behavioral_scores
+  WHERE session_id IN (
+    SELECT id FROM public.interview_sessions WHERE session_date < cutoff_date
+  );
+  GET DIAGNOSTICS v_scores = ROW_COUNT;
+
+  DELETE FROM public.interview_sessions WHERE session_date < cutoff_date;
+  GET DIAGNOSTICS v_sessions = ROW_COUNT;
+
+  RETURN QUERY SELECT v_sessions, v_scores, v_transcripts;
+END;
+$$;
+
+-- ============================================================
+-- SEED DUMMY DATA
 -- ============================================================
 
--- Seed Candidates
 INSERT INTO public.candidates (id, full_name, email, position, status, date_registered, score, notes, keywords) VALUES
   ('11111111-1111-1111-1111-111111111111', 'Jenny Adams', 'jenny.adams@email.com', 'Software Engineer', 'Evaluated', '2026-01-23', 90, 'Strong technical background with 5 years experience.', ARRAY['JavaScript', 'React', 'Node.js']),
   ('22222222-2222-2222-2222-222222222222', 'Mark Chen', 'mark.chen@email.com', 'Marketing Manager', 'In Progress', '2026-02-14', 89, 'Excellent communication skills, leadership potential.', ARRAY['SEO', 'Content Strategy', 'Analytics']),
@@ -131,7 +200,6 @@ INSERT INTO public.candidates (id, full_name, email, position, status, date_regi
   ('66666666-6666-6666-6666-666666666666', 'Allison Martinez', 'allison.martinez@email.com', 'AI Specialist', 'Evaluated', '2026-02-06', 80, 'Strong ML background, good at explaining complex topics.', ARRAY['Machine Learning', 'NLP', 'TensorFlow'])
 ON CONFLICT (id) DO NOTHING;
 
--- Seed Questions
 INSERT INTO public.question_bank (id, question_text, category, difficulty, keywords, ai_scoring_enabled, weights) VALUES
   ('a1111111-1111-1111-1111-111111111111', 'Can you describe your experience with coding in Python?', 'Technical', 'Medium', ARRAY['Python', 'Programming', 'Experience'], true, '{"honesty": 50, "attitude": 50, "confidence": 50, "relevance": 50}'),
   ('a2222222-2222-2222-2222-222222222222', 'How do you debug a piece of code you didn''t write?', 'Technical', 'Hard', ARRAY['Debugging', 'Problem Solving', 'Code Review'], true, '{"honesty": 40, "attitude": 50, "confidence": 60, "relevance": 50}'),
@@ -140,15 +208,19 @@ INSERT INTO public.question_bank (id, question_text, category, difficulty, keywo
   ('a5555555-5555-5555-5555-555555555555', 'What are your strengths as a software engineer?', 'Behavioral', 'Easy', ARRAY['Strengths', 'Self Assessment', 'Skills'], true, '{"honesty": 60, "attitude": 50, "confidence": 50, "relevance": 40}')
 ON CONFLICT (id) DO NOTHING;
 
--- Seed Interview Sessions
 INSERT INTO public.interview_sessions (id, candidate_id, session_date, duration_seconds, questions_answered, questions_total, noise_level_db, validation_status, status, position, round) VALUES
   ('b1111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', '2026-04-22T09:00:00Z', 1185, 5, 5, 42, true, 'Completed', 'Software Engineer', 'Round 1'),
   ('b2222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222', '2026-04-20T14:00:00Z', 1320, 5, 5, 38, true, 'Completed', 'Marketing Manager', 'Round 1')
 ON CONFLICT (id) DO NOTHING;
 
--- Seed Behavioral Scores
 INSERT INTO public.behavioral_scores (id, session_id, honesty_score, attitude_score, confidence_score, relevance_score, overall_score) VALUES
   ('c1111111-1111-1111-1111-111111111111', 'b1111111-1111-1111-1111-111111111111', 94.00, 89.00, 88.00, 91.00, 90.00),
   ('c2222222-2222-2222-2222-222222222222', 'b2222222-2222-2222-2222-222222222222', 91.00, 90.00, 87.00, 88.00, 89.00)
 ON CONFLICT (id) DO NOTHING;
- 
+
+INSERT INTO public.audit_logs (user_email, action, entity_type, details) VALUES
+  ('admin@modernmatrix.com', 'USER_LOGIN', 'auth', 'Admin logged in successfully'),
+  ('admin@modernmatrix.com', 'CANDIDATE_CREATED', 'candidate', 'Added candidate: Jenny Adams'),
+  ('admin@modernmatrix.com', 'SESSION_STARTED', 'interview_session', 'Started session for Jenny Adams'),
+  ('admin@modernmatrix.com', 'SESSION_ENDED', 'interview_session', 'Completed session — duration: 19m 45s'),
+  ('admin@modernmatrix.com', 'QUESTION_CREATED', 'question_bank', 'Added: Python experience question');

@@ -146,19 +146,25 @@ const Signup = () => {
                           />
                         )}
                       />
-                      {errors.lastName && <p className="text-red-400 text-xs">{errors.lastName.message}</p>}
                     </div>
                   </div>
 
-                  {/* User ID */}
+                  {/* Account Role Selector */}
                   <div className="space-y-2">
-                    <label className="text-gray-400 text-xs font-medium block text-left">User ID</label>
-                    <TextInput
-                      name="userId"
+                    <label className="text-gray-400 text-xs font-medium block text-left">Account Role</label>
+                    <Controller
+                      name="role"
                       control={control}
-                      errors={errors}
-                      placeholder="Enter User ID"
-                      required
+                      defaultValue="HR_Manager"
+                      render={({ field }) => (
+                        <select
+                          {...field}
+                          className="w-full px-4 py-2 bg-gray-800 text-gray-300 border border-gray-700 rounded-lg focus:outline-none focus:border-sage focus:ring-1 focus:ring-sage transition cursor-pointer text-xs"
+                        >
+                          <option value="HR_Manager">HR Manager / Recruiter</option>
+                          <option value="Admin">System Administrator (Admin)</option>
+                        </select>
+                      )}
                     />
                   </div>
 

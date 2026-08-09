@@ -69,20 +69,24 @@ const Login = () => {
               <div>
                 <h3 className="text-white text-sm font-semibold mb-5 text-left">Account Security</h3>
 
-                {/* User ID Field */}
+                {/* Email Address Field */}
                 <div className="space-y-2 mb-5">
-                  <label className="text-gray-400 text-xs font-medium block text-left">User ID</label>
+                  <label className="text-gray-400 text-xs font-medium block text-left">Email Address</label>
                   <Controller
                     name="userId"
                     control={control}
                     rules={{
-                      required: 'User ID is required'
+                      required: 'Email address is required',
+                      pattern: {
+                        value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                        message: 'Invalid email address'
+                      }
                     }}
                     render={({ field }) => (
                       <input
                         {...field}
-                        type="text"
-                        placeholder="Enter User ID"
+                        type="email"
+                        placeholder="admin@modernmatrix.com"
                         className="w-full px-4 py-3 bg-gray-800 text-gray-300 border border-gray-700 rounded-lg focus:outline-none focus:border-sage focus:ring-1 focus:ring-sage transition placeholder-gray-600"
                       />
                     )}

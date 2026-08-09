@@ -1,25 +1,39 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { Play, Eye, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Play, Eye, Clock, CheckCircle2, AlertCircle, X, UserCheck, Video } from 'lucide-react';
 import { dummyInterviewSessions, dummyCandidates } from '../lib/dummyData';
 
 const InterviewSessions = () => {
+  const navigate = useNavigate();
+  const [showModal, setShowModal] = useState(false);
+  const [selectedCandidateId, setSelectedCandidateId] = useState(dummyCandidates[0]?.id || 'cand-001');
+  const [selectedRound, setSelectedRound] = useState('Round 1');
+
+  const handleStartSession = (e) => {
+    e.preventDefault();
+    setShowModal(false);
+    navigate(`/interviews/live?candidateId=${selectedCandidateId}&round=${encodeURIComponent(selectedRound)}`);
+  };
+
   return (
     <div>
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">Interview Sessions</h1>
-        <Link
-          to="/interviews/ses-001"
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#a8b88c] text-gray-900 rounded-lg text-sm font-semibold hover:bg-[#98a87c] transition"
+        <div>
+          <h1 className="text-2xl font-bold text-white mb-1">Interview Sessions</h1>
+          <p className="text-gray-400 text-xs">Manage active and past candidate monitoring sessions</p>
+        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#a8b88c] text-gray-900 rounded-lg text-sm font-semibold hover:bg-[#98a87c] transition shadow-lg"
         >
           <Play className="w-4 h-4 fill-current" /> Start New Live Session
-        </Link>
+        </button>
       </div>
 
+      {/* Grid of Interview Sessions */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {dummyInterviewSessions.map((session) => {
-          const candidate = dummyCandidates.find((c) => c.id === session.candidate_id);
-
           return (
             <div
               key={session.id}
@@ -89,6 +103,80 @@ const InterviewSessions = () => {
           );
         })}
       </div>
+
+      {/* Start New Live Session Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
+          <div className="bg-[#1e1e1e] rounded-2xl border border-gray-800 w-full max-w-md shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-800">
+              <div className="flex items-center gap-2.5">
+                <Video className="w-5 h-5 text-[#a8b88c]" />
+                <h2 className="text-white text-base font-bold">Start Live Interview Session</h2>
+              </div>
+              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-300 transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleStartSession} className="p-6 space-y-5">
+              <div>
+                <label className="block text-gray-300 text-xs font-semibold uppercase tracking-wider mb-2">
+                  Select Candidate
+                </label>
+                <select
+                  value={selectedCandidateId}
+                  onChange={(e) => setSelectedCandidateId(e.target.value)}
+                  className="w-full px-4 py-3 bg-[#2a2a2a] border border-gray-700 rounded-lg text-gray-200 text-sm focus:outline-none focus:border-[#a8b88c] transition cursor-pointer"
+                >
+                  {dummyCandidates.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.full_name} ({c.position}) - Status: {c.status}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-xs font-semibold uppercase tracking-wider mb-2">
+                  Interview Round
+                </label>
+                <select
+                  value={selectedRound}
+                  onChange={(e) => setSelectedRound(e.target.value)}
+                  className="w-full px-4 py-3 bg-[#2a2a2a] border border-gray-700 rounded-lg text-gray-200 text-sm focus:outline-none focus:border-[#a8b88c] transition cursor-pointer"
+                >
+                  <option value="Round 1">Round 1 (Initial Screening)</option>
+                  <option value="Round 2">Round 2 (Technical & Behavioral)</option>
+                  <option value="Final Round">Final Round (Management Review)</option>
+                </select>
+              </div>
+
+              <div className="p-3.5 bg-[#252525] rounded-xl border border-gray-800 text-xs text-gray-400 space-y-1">
+                <p className="font-semibold text-gray-300">Live Recording Setup:</p>
+                <p>• Web Audio API real-time microphone capture</p>
+                <p>• 60 dB environmental noise threshold validation</p>
+                <p>• 5-second automatic session checkpoint recovery</p>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-5 py-2.5 text-gray-400 hover:text-gray-200 text-xs font-medium transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-6 py-2.5 bg-[#a8b88c] text-gray-900 font-bold text-xs rounded-lg hover:bg-[#98a87c] transition shadow"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" /> Start Live Recording
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

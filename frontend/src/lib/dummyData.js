@@ -1,5 +1,5 @@
 // ============================================================
-// DUMMY DATA — Modern Matrix AI Interview Monitoring System
+// DUMMY DATA - Modern Matrix AI Interview Monitoring System
 // Matches the SDS GUI mockups exactly
 // ============================================================
 

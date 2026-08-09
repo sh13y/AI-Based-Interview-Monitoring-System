@@ -9,7 +9,9 @@ import {
   Wrench,
   Settings,
   LogOut,
+  Shield,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -17,28 +19,39 @@ const navItems = [
   { path: '/question-bank', label: 'Question Bank', icon: BookOpen },
   { path: '/interviews', label: 'Interview Sessions', icon: Video },
   { path: '/reports', label: 'Reports', icon: FileBarChart },
-  { path: '/system', label: 'System Maintenance', icon: Wrench },
+  { path: '/system', label: 'System Maintenance', icon: Wrench, adminOnly: true },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
 const Sidebar = ({ onLogout }) => {
   const location = useLocation();
+  const { user } = useAuth();
+
+  const userRole = user?.role || 'Admin';
+  const isAdmin = userRole === 'Admin';
+
+  // Filter items according to Role-Based Access Control (FR-02)
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <aside className="w-56 bg-[#1e1e1e] border-r border-gray-800 flex flex-col flex-shrink-0">
-      {/* Logo */}
-      <div className="px-5 py-5 border-b border-gray-800">
-        <div className="flex items-center gap-2.5">
+      {/* Logo & User Role Badge */}
+      <div className="px-5 py-4 border-b border-gray-800">
+        <div className="flex items-center gap-2.5 mb-2">
           <div className="w-8 h-8 rounded-full bg-[#a8b88c]/20 border border-[#a8b88c]/40 flex items-center justify-center">
             <span className="text-[#a8b88c] font-bold text-sm">M</span>
           </div>
           <span className="text-gray-200 font-semibold text-sm tracking-wide">Modern Matrix</span>
         </div>
+        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-[#2a2a2a] rounded text-[11px] text-gray-400 border border-gray-800">
+          <Shield className="w-3 h-3 text-[#a8b88c]" />
+          <span>Role: <strong className="text-gray-200 font-semibold">{userRole}</strong></span>
+        </div>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-        {navItems.map(({ path, label, icon: Icon }) => {
+        {visibleNavItems.map(({ path, label, icon: Icon }) => {
           const isActive = location.pathname === path || location.pathname.startsWith(path + '/');
           return (
             <NavLink

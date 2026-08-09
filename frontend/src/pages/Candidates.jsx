@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { dummyCandidates } from '../lib/dummyData';
 import AddCandidateModal from '../components/Modals/AddCandidateModal';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, writeAuditLog } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 const statusColors = {
   'Evaluated': 'bg-[#a8b88c]/20 text-[#a8b88c] border-[#a8b88c]/30',
@@ -32,6 +33,7 @@ const scoreColors = (score) => {
 };
 
 const Candidates = () => {
+  const { user } = useAuth();
   const [candidates, setCandidates] = useState(dummyCandidates);
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -79,6 +81,13 @@ const Candidates = () => {
         const { data, error } = await supabase.from('candidates').insert([newCand]).select('*');
         if (!error && data) {
           setCandidates(prev => [data[0], ...prev]);
+          await writeAuditLog({
+            action: 'CANDIDATE_CREATED',
+            entityType: 'candidate',
+            entityId: data[0].id,
+            details: `Added candidate: ${formData.full_name} (${formData.position})`,
+            userEmail: user?.email,
+          });
           setShowAddModal(false);
           return;
         }
@@ -87,15 +96,31 @@ const Candidates = () => {
       }
     }
 
-    setCandidates(prev => [{ id: `cand-${Date.now()}`, ...newCand }, ...prev]);
+    const localCandidate = { id: `cand-${Date.now()}`, ...newCand };
+    setCandidates(prev => [localCandidate, ...prev]);
+    await writeAuditLog({
+      action: 'CANDIDATE_CREATED',
+      entityType: 'candidate',
+      entityId: localCandidate.id,
+      details: `Added candidate: ${formData.full_name} (${formData.position})`,
+      userEmail: user?.email,
+    });
     setShowAddModal(false);
   };
 
   const handleDeleteCandidate = async (id) => {
+    const target = candidates.find(c => c.id === id);
     if (isSupabaseConfigured()) {
       await supabase.from('candidates').delete().eq('id', id);
     }
     setCandidates(prev => prev.filter(c => c.id !== id));
+    await writeAuditLog({
+      action: 'CANDIDATE_DELETED',
+      entityType: 'candidate',
+      entityId: id,
+      details: `Deleted candidate: ${target?.full_name || id}`,
+      userEmail: user?.email,
+    });
   };
 
   const filteredCandidates = candidates.filter(c => {
