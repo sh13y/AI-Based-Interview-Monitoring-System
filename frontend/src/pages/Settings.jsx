@@ -1,6 +1,15 @@
+// ==============================================================================
+// Modern Matrix AI Interview Monitoring System - Settings & Profile Management
+// Implements:
+//   [FR-19: PROFILE MANAGEMENT (Edit Profile Details & Update Security Password)]
+//   [FR-21: SYSTEM AUDIT LOGGING (Profile Update & Password Change Tracking)]
+// ==============================================================================
+
 import React, { useState } from 'react';
 import { User, Lock, Bell, Shield, Save } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { supabase, isSupabaseConfigured, writeAuditLog } from '../lib/supabase';
+import toast, { Toaster } from 'react-hot-toast';
 
 const Settings = () => {
   const { user } = useAuth();
@@ -11,16 +20,134 @@ const Settings = () => {
     email: user?.email || 'admin@modernmatrix.com',
     role: user?.role || 'Admin',
   });
-  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = (e) => {
+  // Security tab state
+  const [securityData, setSecurityData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+
+    // Validate mandatory fields
+    if (!profileData.firstName.trim() || !profileData.lastName.trim() || !profileData.email.trim()) {
+      toast.error('First name, last name, and email are mandatory fields.');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      if (isSupabaseConfigured() && user?.id) {
+        // Update the public.users table
+        const { error } = await supabase
+          .from('users')
+          .update({
+            first_name: profileData.firstName,
+            last_name: profileData.lastName,
+            email: profileData.email,
+          })
+          .eq('id', user.id);
+
+        if (error) {
+          toast.error(`Profile update failed: ${error.message}`);
+          setSaving(false);
+          return;
+        }
+
+        // Also update auth metadata
+        await supabase.auth.updateUser({
+          data: {
+            first_name: profileData.firstName,
+            last_name: profileData.lastName,
+          },
+        });
+      }
+
+      // Update localStorage for demo/fallback mode
+      const updatedUser = {
+        ...user,
+        first_name: profileData.firstName,
+        last_name: profileData.lastName,
+        email: profileData.email,
+      };
+      localStorage.setItem('mm_user_current', JSON.stringify(updatedUser));
+
+      await writeAuditLog({
+        action: 'PROFILE_UPDATED',
+        entityType: 'user',
+        entityId: user?.id,
+        details: `Profile updated: ${profileData.firstName} ${profileData.lastName}`,
+        userEmail: profileData.email,
+      });
+
+      toast.success('Profile information saved successfully!');
+    } catch (err) {
+      console.error('Profile save error:', err);
+      toast.error('An error occurred while saving your profile.');
+    }
+
+    setSaving(false);
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+
+    if (!securityData.currentPassword || !securityData.newPassword || !securityData.confirmPassword) {
+      toast.error('All password fields are required.');
+      return;
+    }
+
+    if (securityData.newPassword.length < 6) {
+      toast.error('New password must be at least 6 characters long.');
+      return;
+    }
+
+    if (securityData.newPassword !== securityData.confirmPassword) {
+      toast.error('New password and confirmation do not match.');
+      return;
+    }
+
+    setChangingPassword(true);
+
+    try {
+      if (isSupabaseConfigured()) {
+        const { error } = await supabase.auth.updateUser({
+          password: securityData.newPassword,
+        });
+
+        if (error) {
+          toast.error(`Password update failed: ${error.message}`);
+          setChangingPassword(false);
+          return;
+        }
+      }
+
+      await writeAuditLog({
+        action: 'PASSWORD_CHANGED',
+        entityType: 'auth',
+        entityId: user?.id,
+        details: 'User changed their account password',
+        userEmail: user?.email,
+      });
+
+      setSecurityData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      toast.success('Password updated successfully!');
+    } catch (err) {
+      console.error('Password change error:', err);
+      toast.error('An error occurred while updating your password.');
+    }
+
+    setChangingPassword(false);
   };
 
   return (
     <div>
+      <Toaster position="top-right" />
       <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
 
       <div className="grid grid-cols-12 gap-6">
@@ -52,14 +179,9 @@ const Settings = () => {
         {/* Form area */}
         <div className="col-span-12 md:col-span-9">
           <div className="bg-[#252525] rounded-xl p-6 border border-gray-800">
-            {saved && (
-              <div className="mb-4 p-3 bg-green-500/20 border border-green-500/30 text-green-400 text-xs rounded-lg flex items-center justify-between">
-                <span>Settings saved successfully!</span>
-              </div>
-            )}
 
             {activeTab === 'profile' && (
-              <form onSubmit={handleSave} className="space-y-4">
+              <form onSubmit={handleSaveProfile} className="space-y-4">
                 <h2 className="text-white text-base font-bold mb-4">Profile Information</h2>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -69,6 +191,7 @@ const Settings = () => {
                       value={profileData.firstName}
                       onChange={(e) => setProfileData({ ...profileData, firstName: e.target.value })}
                       className="w-full px-4 py-2.5 bg-[#1e1e1e] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c]"
+                      required
                     />
                   </div>
                   <div>
@@ -78,6 +201,7 @@ const Settings = () => {
                       value={profileData.lastName}
                       onChange={(e) => setProfileData({ ...profileData, lastName: e.target.value })}
                       className="w-full px-4 py-2.5 bg-[#1e1e1e] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c]"
+                      required
                     />
                   </div>
                 </div>
@@ -89,6 +213,7 @@ const Settings = () => {
                     value={profileData.email}
                     onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
                     className="w-full px-4 py-2.5 bg-[#1e1e1e] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c]"
+                    required
                   />
                 </div>
 
@@ -105,23 +230,27 @@ const Settings = () => {
                 <div className="pt-4 flex justify-end">
                   <button
                     type="submit"
-                    className="flex items-center gap-2 px-5 py-2.5 bg-[#a8b88c] text-gray-900 font-semibold text-xs rounded-lg hover:bg-[#98a87c] transition"
+                    disabled={saving}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-[#a8b88c] text-gray-900 font-semibold text-xs rounded-lg hover:bg-[#98a87c] transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Save className="w-4 h-4" /> Save Changes
+                    <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </form>
             )}
 
             {activeTab === 'security' && (
-              <form onSubmit={handleSave} className="space-y-4">
+              <form onSubmit={handleChangePassword} className="space-y-4">
                 <h2 className="text-white text-base font-bold mb-4">Account Security</h2>
                 <div>
                   <label className="block text-gray-400 text-xs font-medium mb-1">Current Password</label>
                   <input
                     type="password"
                     placeholder="••••••••"
+                    value={securityData.currentPassword}
+                    onChange={(e) => setSecurityData({ ...securityData, currentPassword: e.target.value })}
                     className="w-full px-4 py-2.5 bg-[#1e1e1e] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c]"
+                    required
                   />
                 </div>
                 <div>
@@ -129,7 +258,10 @@ const Settings = () => {
                   <input
                     type="password"
                     placeholder="••••••••"
+                    value={securityData.newPassword}
+                    onChange={(e) => setSecurityData({ ...securityData, newPassword: e.target.value })}
                     className="w-full px-4 py-2.5 bg-[#1e1e1e] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c]"
+                    required
                   />
                 </div>
                 <div>
@@ -137,15 +269,19 @@ const Settings = () => {
                   <input
                     type="password"
                     placeholder="••••••••"
+                    value={securityData.confirmPassword}
+                    onChange={(e) => setSecurityData({ ...securityData, confirmPassword: e.target.value })}
                     className="w-full px-4 py-2.5 bg-[#1e1e1e] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c]"
+                    required
                   />
                 </div>
                 <div className="pt-4 flex justify-end">
                   <button
                     type="submit"
-                    className="flex items-center gap-2 px-5 py-2.5 bg-[#a8b88c] text-gray-900 font-semibold text-xs rounded-lg hover:bg-[#98a87c] transition"
+                    disabled={changingPassword}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-[#a8b88c] text-gray-900 font-semibold text-xs rounded-lg hover:bg-[#98a87c] transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Save className="w-4 h-4" /> Update Password
+                    <Save className="w-4 h-4" /> {changingPassword ? 'Updating...' : 'Update Password'}
                   </button>
                 </div>
               </form>

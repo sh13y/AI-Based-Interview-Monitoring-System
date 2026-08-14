@@ -13,6 +13,7 @@ const Signup = () => {
       email: '',
       password: '',
       confirmPassword: '',
+      role: 'HR_Manager',
       profilePicture: null,
       termsAccepted: false,
     }
@@ -66,12 +67,13 @@ const Signup = () => {
       password: data.password,
       confirmPassword: data.confirmPassword,
       profilePicture: data.profilePicture,
+      role: data.role || 'HR_Manager',
     });
 
     if (result.success) {
-      navigate(`/verify-email?email=${encodeURIComponent(data.email)}`);
+      navigate('/dashboard');
     } else {
-      setError(result.error);
+      setError(result.error || 'Failed to create account. Please check your details.');
     }
     setLoading(false);
   };
@@ -89,7 +91,6 @@ const Signup = () => {
         <div className="flex items-center px-8 py-4">
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="Modern Matrix" className="w-30 h-9" />
-            {/* <h1 className="text-sage font-semibold text-base tracking-wide">Modern Matrix</h1> */}
           </div>
         </div>
       </div>

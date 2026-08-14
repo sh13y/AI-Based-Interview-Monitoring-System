@@ -50,3 +50,7 @@ venv/
 *.local
 .vercel/
 .netlify/
+
+
+# Documentation files
+docs/*

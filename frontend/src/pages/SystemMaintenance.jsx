@@ -1,3 +1,11 @@
+// ==============================================================================
+// Modern Matrix AI Interview Monitoring System - System Maintenance (Admin Only)
+// Implements:
+//   [FR-02: ROLE-BASED ACCESS CONTROL (Admin Only System Maintenance & User Control)]
+//   [FR-20: AUTOMATED DATA PURGE (30-Day Data Retention Policy Execution)]
+//   [FR-21: SYSTEM AUDIT LOGGING (Live Activity Log Viewer & Recording)]
+// ==============================================================================
+
 import React, { useState, useEffect } from 'react';
 import {
   Cpu,
@@ -25,6 +33,7 @@ import {
   writeAuditLog,
 } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import ManageUsersModal from '../components/Modals/ManageUsersModal';
 import toast, { Toaster } from 'react-hot-toast';
 
 const SystemMaintenance = () => {
@@ -33,6 +42,7 @@ const SystemMaintenance = () => {
   const [dbConnection, setDbConnection] = useState({ loading: true, connected: false, message: '' });
   const [auditLogs, setAuditLogs] = useState([]);
   const [showLogsModal, setShowLogsModal] = useState(false);
+  const [showUsersModal, setShowUsersModal] = useState(false);
   const [purging, setPurging] = useState(false);
   const [purgeResult, setPurgeResult] = useState(null);
 
@@ -86,6 +96,12 @@ const SystemMaintenance = () => {
           <p className="text-gray-400 text-xs">Manage system configuration, database backups, audit logs, and data retention policies</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowUsersModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#a8b88c] hover:bg-[#98a87c] text-gray-900 font-bold text-xs rounded-lg transition shadow"
+          >
+            <Users className="w-4 h-4" /> Manage HR Managers ({stats.totalRecruiters})
+          </button>
           <button
             onClick={checkConnection}
             className="flex items-center gap-2 px-4 py-2.5 bg-[#d4a843] hover:bg-[#c39732] text-gray-900 font-bold text-xs rounded-lg transition shadow"
@@ -252,8 +268,11 @@ const SystemMaintenance = () => {
             </div>
           </div>
 
-          <button className="w-full py-2.5 bg-[#3a3a3a] hover:bg-[#4a4a4a] text-gray-200 font-semibold text-xs rounded-lg transition">
-            Manage Role Permissions
+          <button
+            onClick={() => setShowUsersModal(true)}
+            className="w-full py-2.5 bg-[#a8b88c] hover:bg-[#98a87c] text-gray-900 font-bold text-xs rounded-lg transition shadow"
+          >
+            Manage HR Managers & User Permissions
           </button>
         </div>
 
@@ -365,6 +384,11 @@ const SystemMaintenance = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Manage Users Modal (Admin only: Delete HR Managers, view session logs) */}
+      {showUsersModal && (
+        <ManageUsersModal onClose={() => setShowUsersModal(false)} />
       )}
     </div>
   );

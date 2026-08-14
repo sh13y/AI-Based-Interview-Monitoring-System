@@ -1,14 +1,22 @@
+// ==============================================================================
+// Modern Matrix AI Interview Monitoring System - Add/Edit Question Modal
+// Implements:
+//   [FR-04: QUESTION BANK MANAGEMENT (Question Creation & AI Scoring Weights)]
+// ==============================================================================
+
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 
-const AddQuestionModal = ({ onClose, onSubmit }) => {
+const AddQuestionModal = ({ onClose, onSubmit, editData }) => {
+  const isEditing = !!editData;
+
   const [formData, setFormData] = useState({
-    question_text: '',
-    category: 'Technical',
-    difficulty: 'Medium',
-    keywords: ['SQL', 'Indexing', 'Optimization', 'Logs'],
-    ai_scoring_enabled: true,
-    weights: {
+    question_text: editData?.question_text || '',
+    category: editData?.category || 'Technical',
+    difficulty: editData?.difficulty || 'Medium',
+    keywords: editData?.keywords || ['SQL', 'Indexing', 'Optimization', 'Logs'],
+    ai_scoring_enabled: editData?.ai_scoring_enabled ?? true,
+    weights: editData?.weights || {
       honesty: 50,
       confidence: 50,
       attitude: 50,
@@ -34,7 +42,11 @@ const AddQuestionModal = ({ onClose, onSubmit }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    if (isEditing) {
+      onSubmit({ ...formData, id: editData.id });
+    } else {
+      onSubmit(formData);
+    }
   };
 
   return (
@@ -47,7 +59,7 @@ const AddQuestionModal = ({ onClose, onSubmit }) => {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-800">
-          <h2 className="text-white text-lg font-bold">Add Question</h2>
+          <h2 className="text-white text-lg font-bold">{isEditing ? 'Edit Question' : 'Add Question'}</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-300 transition">
             <X className="w-5 h-5" />
           </button>
@@ -185,7 +197,7 @@ const AddQuestionModal = ({ onClose, onSubmit }) => {
               type="submit"
               className="px-5 py-2.5 bg-[#a8b88c] text-gray-900 rounded-lg text-sm font-semibold hover:bg-[#98a87c] transition"
             >
-              Add Question
+              {isEditing ? 'Update Question' : 'Add Question'}
             </button>
           </div>
         </form>

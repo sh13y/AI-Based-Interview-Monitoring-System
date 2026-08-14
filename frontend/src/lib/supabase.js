@@ -1,3 +1,10 @@
+// ==============================================================================
+// Modern Matrix AI Interview Monitoring System - Supabase Cloud Provider
+// Implements:
+//   [FR-20: AUTOMATED DATA PURGE (PostgreSQL RPC purge_expired_records)]
+//   [FR-21: SYSTEM AUDIT LOGGING (Immutable audit_logs DB Storage)]
+// ==============================================================================
+
 import { createClient } from '@supabase/supabase-js';
 
 /**

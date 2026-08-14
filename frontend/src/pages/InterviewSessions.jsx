@@ -1,7 +1,20 @@
+// ==============================================================================
+// Modern Matrix AI Interview Monitoring System - Interview Sessions
+// Implements:
+//   [FR-18: SESSION HISTORY (Search, Filter by Status, Detailed Session Inspection)]
+//   [FR-06: INITIATE NEW LIVE MONITORING SESSION]
+// ==============================================================================
+
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Play, Eye, Clock, CheckCircle2, AlertCircle, X, UserCheck, Video } from 'lucide-react';
+import { Play, Eye, Clock, CheckCircle2, AlertCircle, X, UserCheck, Video, Search, Filter } from 'lucide-react';
 import { dummyInterviewSessions, dummyCandidates } from '../lib/dummyData';
+
+const statusColors = {
+  'Completed': 'bg-[#a8b88c]/20 text-[#a8b88c] border-[#a8b88c]/30',
+  'In Progress': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  'Pending Review': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+};
 
 const InterviewSessions = () => {
   const navigate = useNavigate();
@@ -9,11 +22,27 @@ const InterviewSessions = () => {
   const [selectedCandidateId, setSelectedCandidateId] = useState(dummyCandidates[0]?.id || 'cand-001');
   const [selectedRound, setSelectedRound] = useState('Round 1');
 
+  // FR-18: Search and filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+
   const handleStartSession = (e) => {
     e.preventDefault();
     setShowModal(false);
     navigate(`/interviews/live?candidateId=${selectedCandidateId}&round=${encodeURIComponent(selectedRound)}`);
   };
+
+  // FR-18: Filter sessions by search query and status
+  const filteredSessions = dummyInterviewSessions.filter((session) => {
+    const matchSearch =
+      searchQuery === '' ||
+      session.candidate_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      session.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      session.position.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      session.evaluator_name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchStatus = statusFilter === 'All' || session.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
 
   return (
     <div>
@@ -31,78 +60,115 @@ const InterviewSessions = () => {
         </button>
       </div>
 
+      {/* FR-18: Search & Filter Bar */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <input
+            type="text"
+            placeholder="Search by candidate name, session ID, or position..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-[#2a2a2a] border border-gray-700 rounded-lg text-sm text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#a8b88c] transition"
+          />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-2.5 bg-[#2a2a2a] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c] transition cursor-pointer"
+        >
+          <option value="All">All Statuses</option>
+          <option value="Completed">Completed</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Pending Review">Pending Review</option>
+        </select>
+        <span className="text-gray-500 text-xs">
+          Showing {filteredSessions.length} of {dummyInterviewSessions.length} sessions
+        </span>
+      </div>
+
       {/* Grid of Interview Sessions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {dummyInterviewSessions.map((session) => {
-          return (
-            <div
-              key={session.id}
-              className="bg-[#252525] rounded-xl p-5 border border-gray-800/50 hover:border-gray-700 transition flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
-                      session.status === 'Completed'
-                        ? 'bg-[#a8b88c]/20 text-[#a8b88c] border-[#a8b88c]/30'
-                        : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-                    }`}
-                  >
-                    {session.status}
-                  </span>
-                  <span className="text-gray-500 text-xs flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    {Math.floor(session.duration_seconds / 60)}m {session.duration_seconds % 60}s
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-[#3a3a3a] border border-gray-700 flex items-center justify-center text-gray-300 font-bold text-sm">
-                    {session.candidate_name.split(' ').map((n) => n[0]).join('')}
-                  </div>
-                  <div>
-                    <p className="text-gray-200 text-sm font-semibold">{session.candidate_name}</p>
-                    <p className="text-gray-500 text-xs">{session.position}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5 text-xs text-gray-400 mb-5 bg-[#1e1e1e] p-3 rounded-lg border border-gray-800">
-                  <div className="flex justify-between">
-                    <span>Evaluator:</span>
-                    <span className="text-gray-300">{session.evaluator_name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Questions:</span>
-                    <span className="text-gray-300">
-                      {session.questions_answered} out of {session.questions_total}
+      {filteredSessions.length === 0 ? (
+        <div className="bg-[#252525] rounded-xl p-12 border border-gray-800 text-center">
+          <Search className="w-8 h-8 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-400 text-sm font-medium">No sessions found matching your search criteria.</p>
+          <p className="text-gray-500 text-xs mt-1">Try adjusting your search or filter.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredSessions.map((session) => {
+            return (
+              <div
+                key={session.id}
+                className="bg-[#252525] rounded-xl p-5 border border-gray-800/50 hover:border-gray-700 transition flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                        statusColors[session.status] || statusColors['Pending Review']
+                      }`}
+                    >
+                      {session.status}
+                    </span>
+                    <span className="text-gray-500 text-xs flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" />
+                      {Math.floor(session.duration_seconds / 60)}m {session.duration_seconds % 60}s
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Avg Noise Level:</span>
-                    <span className="text-gray-300">{session.noise_level_db} dB</span>
+
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-full bg-[#3a3a3a] border border-gray-700 flex items-center justify-center text-gray-300 font-bold text-sm">
+                      {session.candidate_name.split(' ').map((n) => n[0]).join('')}
+                    </div>
+                    <div>
+                      <p className="text-gray-200 text-sm font-semibold">{session.candidate_name}</p>
+                      <p className="text-gray-500 text-xs">{session.position}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 text-xs text-gray-400 mb-5 bg-[#1e1e1e] p-3 rounded-lg border border-gray-800">
+                    <div className="flex justify-between">
+                      <span>Evaluator:</span>
+                      <span className="text-gray-300">{session.evaluator_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Questions:</span>
+                      <span className="text-gray-300">
+                        {session.questions_answered} out of {session.questions_total}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Avg Noise Level:</span>
+                      <span className="text-gray-300">{session.noise_level_db} dB</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Session ID:</span>
+                      <span className="text-gray-400 font-mono text-[11px]">{session.id}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-gray-800/50">
-                <span className="text-xs text-gray-500">
-                  {new Date(session.session_date).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
-                </span>
-                <Link
-                  to={`/interviews/${session.id}`}
-                  className="flex items-center gap-1.5 text-xs text-[#a8b88c] hover:underline font-medium"
-                >
-                  <Eye className="w-4 h-4" /> View Session
-                </Link>
+                <div className="flex items-center justify-between pt-3 border-t border-gray-800/50">
+                  <span className="text-xs text-gray-500">
+                    {new Date(session.session_date).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </span>
+                  <Link
+                    to={`/interviews/${session.id}`}
+                    className="flex items-center gap-1.5 text-xs text-[#a8b88c] hover:underline font-medium"
+                  >
+                    <Eye className="w-4 h-4" /> View Session
+                  </Link>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Start New Live Session Modal */}
       {showModal && (

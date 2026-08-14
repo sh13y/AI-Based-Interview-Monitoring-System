@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Clock,
   X,
+  RefreshCw,
 } from 'lucide-react';
 
 const DashboardLayout = ({ children }) => {
@@ -75,6 +76,11 @@ const DashboardLayout = ({ children }) => {
   const displayEmail = user?.email || 'admin@modernmatrix.com';
   const displayRole = user?.role || 'Admin';
 
+  const handleToggleRole = () => {
+    const nextRole = displayRole === 'Admin' ? 'HR_Manager' : 'Admin';
+    switchRole(nextRole);
+  };
+
   return (
     <div className="flex h-screen bg-[#1a1a1a] overflow-hidden">
       {/* Sidebar */}
@@ -84,7 +90,9 @@ const DashboardLayout = ({ children }) => {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="h-16 bg-[#1e1e1e] border-b border-gray-800 flex items-center justify-between px-6 flex-shrink-0 z-30">
-          <div></div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500 font-medium">Modern Matrix Monitoring System</span>
+          </div>
 
           {/* Right side icons */}
           <div className="flex items-center gap-4">
@@ -148,15 +156,17 @@ const DashboardLayout = ({ children }) => {
                     ))}
                   </div>
 
-                  <div className="p-2.5 border-t border-gray-800 text-center bg-[#252525]">
-                    <Link
-                      to="/system"
-                      onClick={() => setShowNotifications(false)}
-                      className="text-[11px] text-[#a8b88c] hover:underline font-bold"
-                    >
-                      View System Maintenance & Logs
-                    </Link>
-                  </div>
+                  {user?.role === 'Admin' && (
+                    <div className="p-2.5 border-t border-gray-800 text-center bg-[#252525]">
+                      <Link
+                        to="/system"
+                        onClick={() => setShowNotifications(false)}
+                        className="text-[11px] text-[#a8b88c] hover:underline font-bold"
+                      >
+                        View System Maintenance & Logs
+                      </Link>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -186,10 +196,10 @@ const DashboardLayout = ({ children }) => {
 
               {/* Profile Dropdown Menu */}
               {showProfileMenu && (
-                <div className="absolute right-0 mt-2 w-64 bg-[#1e1e1e] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden z-50">
+                <div className="absolute right-0 mt-2 w-72 bg-[#1e1e1e] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden z-50">
                   {/* User Profile Card Header */}
                   <div className="p-4 border-b border-gray-800 bg-[#252525]">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 mb-2">
                       <div className="w-10 h-10 rounded-full bg-[#3a3a3a] border border-[#a8b88c] flex items-center justify-center text-white font-bold">
                         {displayName.split(' ').map((n) => n[0]).join('')}
                       </div>
@@ -200,6 +210,18 @@ const DashboardLayout = ({ children }) => {
                           <Shield className="w-2.5 h-2.5" /> {displayRole}
                         </span>
                       </div>
+                    </div>
+
+                    {/* Quick Role Switcher for Demo / Testing (FR-02) */}
+                    <div className="mt-3 pt-2.5 border-t border-gray-700/60 flex items-center justify-between">
+                      <span className="text-[11px] text-gray-400">Current Role:</span>
+                      <button
+                        onClick={handleToggleRole}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#1e1e1e] hover:bg-[#333] text-[#d4a843] border border-gray-700 rounded-md text-[10px] font-bold transition"
+                        title="Click to toggle role for RBAC testing"
+                      >
+                        <RefreshCw className="w-2.5 h-2.5" /> Switch to {displayRole === 'Admin' ? 'HR Manager' : 'Admin'}
+                      </button>
                     </div>
                   </div>
 

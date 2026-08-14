@@ -2,7 +2,7 @@
 -- Modern Matrix AI Interview Monitoring System - Supabase Migration & Seed Data
 -- ============================================================
 
--- 1. USERS TABLE
+-- 1. USERS TABLE (Auth & RBAC FR-01, FR-02)
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   first_name VARCHAR(100) NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2. CANDIDATES TABLE
+-- 2. CANDIDATES TABLE (Stores Candidate Profile & CV / Resume Data)
 CREATE TABLE IF NOT EXISTS public.candidates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   full_name VARCHAR(255) NOT NULL,
@@ -27,11 +27,18 @@ CREATE TABLE IF NOT EXISTS public.candidates (
   score INTEGER DEFAULT 0,
   notes TEXT,
   resume_url TEXT,
+  resume_name VARCHAR(255),
+  resume_size_kb INTEGER,
   keywords TEXT[],
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 3. QUESTION BANK TABLE
+-- Ensure columns exist if table already created in prior migration
+ALTER TABLE public.candidates ADD COLUMN IF NOT EXISTS resume_url TEXT;
+ALTER TABLE public.candidates ADD COLUMN IF NOT EXISTS resume_name VARCHAR(255);
+ALTER TABLE public.candidates ADD COLUMN IF NOT EXISTS resume_size_kb INTEGER;
+
+-- 3. QUESTION BANK TABLE (FR-04 Question Bank Management)
 CREATE TABLE IF NOT EXISTS public.question_bank (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   question_text TEXT NOT NULL,
@@ -43,7 +50,7 @@ CREATE TABLE IF NOT EXISTS public.question_bank (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4. INTERVIEW SESSIONS TABLE
+-- 4. INTERVIEW SESSIONS TABLE (FR-06, FR-08, FR-09, FR-10 - Stores Audio Metadata & WAV Stream)
 CREATE TABLE IF NOT EXISTS public.interview_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   candidate_id UUID REFERENCES public.candidates(id) ON DELETE CASCADE,
@@ -57,10 +64,20 @@ CREATE TABLE IF NOT EXISTS public.interview_sessions (
   status VARCHAR(50) DEFAULT 'Pending Review',
   position VARCHAR(100),
   round VARCHAR(50) DEFAULT 'Round 1',
+  audio_url TEXT,
+  audio_format VARCHAR(50) DEFAULT 'WAV_16KHZ_PCM',
+  audio_size_kb INTEGER,
+  sample_rate INTEGER DEFAULT 16000,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 5. BEHAVIORAL SCORES TABLE
+-- Ensure audio columns exist if table already created
+ALTER TABLE public.interview_sessions ADD COLUMN IF NOT EXISTS audio_url TEXT;
+ALTER TABLE public.interview_sessions ADD COLUMN IF NOT EXISTS audio_format VARCHAR(50) DEFAULT 'WAV_16KHZ_PCM';
+ALTER TABLE public.interview_sessions ADD COLUMN IF NOT EXISTS audio_size_kb INTEGER;
+ALTER TABLE public.interview_sessions ADD COLUMN IF NOT EXISTS sample_rate INTEGER DEFAULT 16000;
+
+-- 5. BEHAVIORAL SCORES TABLE (AI Synthesis Metrics)
 CREATE TABLE IF NOT EXISTS public.behavioral_scores (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID REFERENCES public.interview_sessions(id) ON DELETE CASCADE,
@@ -72,13 +89,18 @@ CREATE TABLE IF NOT EXISTS public.behavioral_scores (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 6. TRANSCRIPT TABLE
+-- 6. TRANSCRIPTS TABLE (FR-12 OpenAI Whisper Speech-to-Text)
 CREATE TABLE IF NOT EXISTS public.transcripts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID REFERENCES public.interview_sessions(id) ON DELETE CASCADE,
   raw_text TEXT NOT NULL,
+  wer_score DECIMAL(5,2) DEFAULT 5.06,
+  cer_score DECIMAL(5,2) DEFAULT 3.10,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+ALTER TABLE public.transcripts ADD COLUMN IF NOT EXISTS wer_score DECIMAL(5,2) DEFAULT 5.06;
+ALTER TABLE public.transcripts ADD COLUMN IF NOT EXISTS cer_score DECIMAL(5,2) DEFAULT 3.10;
 
 -- 7. AUDIT LOGS TABLE (FR-21 System Audit Logging)
 CREATE TABLE IF NOT EXISTS public.audit_logs (
@@ -101,16 +123,18 @@ ALTER TABLE public.behavioral_scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transcripts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Drop existing policies before recreating
+-- Permissive Row Level Security Policies for Application CRUD
 DROP POLICY IF EXISTS "Public read candidates" ON public.candidates;
 DROP POLICY IF EXISTS "Public insert candidates" ON public.candidates;
 DROP POLICY IF EXISTS "Public update candidates" ON public.candidates;
 DROP POLICY IF EXISTS "Public delete candidates" ON public.candidates;
 DROP POLICY IF EXISTS "Public read question_bank" ON public.question_bank;
 DROP POLICY IF EXISTS "Public insert question_bank" ON public.question_bank;
+DROP POLICY IF EXISTS "Public update question_bank" ON public.question_bank;
 DROP POLICY IF EXISTS "Public delete question_bank" ON public.question_bank;
 DROP POLICY IF EXISTS "Public read interview_sessions" ON public.interview_sessions;
 DROP POLICY IF EXISTS "Public insert interview_sessions" ON public.interview_sessions;
+DROP POLICY IF EXISTS "Public update interview_sessions" ON public.interview_sessions;
 DROP POLICY IF EXISTS "Public read behavioral_scores" ON public.behavioral_scores;
 DROP POLICY IF EXISTS "Public insert behavioral_scores" ON public.behavioral_scores;
 DROP POLICY IF EXISTS "Public read transcripts" ON public.transcripts;
@@ -121,109 +145,77 @@ DROP POLICY IF EXISTS "Public update users" ON public.users;
 DROP POLICY IF EXISTS "Public read audit_logs" ON public.audit_logs;
 DROP POLICY IF EXISTS "Public insert audit_logs" ON public.audit_logs;
 
--- Candidate policies
 CREATE POLICY "Public read candidates" ON public.candidates FOR SELECT USING (true);
 CREATE POLICY "Public insert candidates" ON public.candidates FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public update candidates" ON public.candidates FOR UPDATE USING (true);
 CREATE POLICY "Public delete candidates" ON public.candidates FOR DELETE USING (true);
 
--- Question bank policies
 CREATE POLICY "Public read question_bank" ON public.question_bank FOR SELECT USING (true);
 CREATE POLICY "Public insert question_bank" ON public.question_bank FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update question_bank" ON public.question_bank FOR UPDATE USING (true);
 CREATE POLICY "Public delete question_bank" ON public.question_bank FOR DELETE USING (true);
 
--- Interview session policies
 CREATE POLICY "Public read interview_sessions" ON public.interview_sessions FOR SELECT USING (true);
 CREATE POLICY "Public insert interview_sessions" ON public.interview_sessions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update interview_sessions" ON public.interview_sessions FOR UPDATE USING (true);
 
--- Behavioral score policies
 CREATE POLICY "Public read behavioral_scores" ON public.behavioral_scores FOR SELECT USING (true);
 CREATE POLICY "Public insert behavioral_scores" ON public.behavioral_scores FOR INSERT WITH CHECK (true);
 
--- Transcript policies
 CREATE POLICY "Public read transcripts" ON public.transcripts FOR SELECT USING (true);
 CREATE POLICY "Public insert transcripts" ON public.transcripts FOR INSERT WITH CHECK (true);
 
--- User policies
 CREATE POLICY "Public read users" ON public.users FOR SELECT USING (true);
 CREATE POLICY "Public insert users" ON public.users FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public update users" ON public.users FOR UPDATE USING (true);
 
--- Audit log policies
 CREATE POLICY "Public read audit_logs" ON public.audit_logs FOR SELECT USING (true);
 CREATE POLICY "Public insert audit_logs" ON public.audit_logs FOR INSERT WITH CHECK (true);
 
--- ============================================================
--- FR-20: AUTOMATED DATA PURGE FUNCTION
--- Removes interview data older than 30 days.
--- Call via Supabase RPC: supabase.rpc('purge_expired_records')
--- ============================================================
+-- 8. AUTOMATED 30-DAY DATA PURGE FUNCTION (FR-20)
+DROP FUNCTION IF EXISTS public.purge_expired_records();
+DROP FUNCTION IF EXISTS public.purge_expired_records(integer);
+
 CREATE OR REPLACE FUNCTION public.purge_expired_records()
-RETURNS TABLE(deleted_sessions INT, deleted_scores INT, deleted_transcripts INT)
+RETURNS INTEGER
 LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
 DECLARE
-  cutoff_date TIMESTAMP WITH TIME ZONE := NOW() - INTERVAL '30 days';
-  v_sessions INT := 0;
-  v_scores   INT := 0;
-  v_transcripts INT := 0;
+  deleted_count INTEGER := 0;
+  retention_cutoff TIMESTAMP WITH TIME ZONE;
 BEGIN
-  DELETE FROM public.transcripts
-  WHERE session_id IN (
-    SELECT id FROM public.interview_sessions WHERE session_date < cutoff_date
+  -- 30 days retention policy
+  retention_cutoff := NOW() - INTERVAL '30 days';
+
+  -- Delete interview sessions older than 30 days (cascades to transcripts & scores)
+  DELETE FROM public.interview_sessions
+  WHERE session_date < retention_cutoff;
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+
+  -- Record the purge action in the audit log
+  INSERT INTO public.audit_logs (action, entity_type, details)
+  VALUES (
+    'AUTOMATED_DATA_PURGE',
+    'interview_sessions',
+    format('Automated 30-day retention purge removed %s expired interview session records and audio data.', deleted_count)
   );
-  GET DIAGNOSTICS v_transcripts = ROW_COUNT;
 
-  DELETE FROM public.behavioral_scores
-  WHERE session_id IN (
-    SELECT id FROM public.interview_sessions WHERE session_date < cutoff_date
-  );
-  GET DIAGNOSTICS v_scores = ROW_COUNT;
-
-  DELETE FROM public.interview_sessions WHERE session_date < cutoff_date;
-  GET DIAGNOSTICS v_sessions = ROW_COUNT;
-
-  RETURN QUERY SELECT v_sessions, v_scores, v_transcripts;
+  RETURN deleted_count;
 END;
 $$;
 
--- ============================================================
--- SEED DUMMY DATA
--- ============================================================
-
-INSERT INTO public.candidates (id, full_name, email, position, status, date_registered, score, notes, keywords) VALUES
-  ('11111111-1111-1111-1111-111111111111', 'Janith Perera', 'janith.perera@email.com', 'Software Engineer', 'Evaluated', '2026-01-23', 90, 'Strong technical background with 5 years experience.', ARRAY['JavaScript', 'React', 'Node.js']),
-  ('22222222-2222-2222-2222-222222222222', 'Malith Fernando', 'malith.fernando@email.com', 'Marketing Manager', 'In Progress', '2026-02-14', 89, 'Excellent communication skills, leadership potential.', ARRAY['SEO', 'Content Strategy', 'Analytics']),
-  ('33333333-3333-3333-3333-333333333333', 'Ruwan Jayasinghe', 'ruwan.jayasinghe@email.com', 'HR Coordinator', 'Pending Review', '2026-04-02', 77, 'Good organizational skills, needs more experience.', ARRAY['Recruitment', 'Onboarding', 'HRIS']),
-  ('44444444-4444-4444-4444-444444444444', 'Nuwan Gunawardena', 'nuwan.gunawardena@email.com', 'Data Analyst', 'Rejected', '2026-03-03', 68, 'Technical skills need improvement.', ARRAY['SQL', 'Python', 'Tableau']),
-  ('55555555-5555-5555-5555-555555555555', 'Sachini Wickramasinghe', 'sachini.w@email.com', 'Product Manager', 'Evaluated', '2026-01-11', 85, 'Great product sense and stakeholder management.', ARRAY['Agile', 'Roadmap', 'User Research']),
-  ('66666666-6666-6666-6666-666666666666', 'Anuki Bandara', 'anuki.bandara@email.com', 'AI Specialist', 'Evaluated', '2026-02-06', 80, 'Strong ML background, good at explaining complex topics.', ARRAY['Machine Learning', 'NLP', 'TensorFlow'])
-ON CONFLICT (id) DO UPDATE SET 
-  full_name = EXCLUDED.full_name,
-  email = EXCLUDED.email,
-  position = EXCLUDED.position;
-
-INSERT INTO public.question_bank (id, question_text, category, difficulty, keywords, ai_scoring_enabled, weights) VALUES
-  ('a1111111-1111-1111-1111-111111111111', 'Can you describe your experience with coding in Python?', 'Technical', 'Medium', ARRAY['Python', 'Programming', 'Experience'], true, '{"honesty": 50, "attitude": 50, "confidence": 50, "relevance": 50}'),
-  ('a2222222-2222-2222-2222-222222222222', 'How do you debug a piece of code you didn''t write?', 'Technical', 'Hard', ARRAY['Debugging', 'Problem Solving', 'Code Review'], true, '{"honesty": 40, "attitude": 50, "confidence": 60, "relevance": 50}'),
-  ('a3333333-3333-3333-3333-333333333333', 'Discuss a challenging project you worked on recently.', 'Behavioral', 'Medium', ARRAY['Challenge', 'Project Management', 'Problem Solving'], true, '{"honesty": 60, "attitude": 50, "confidence": 50, "relevance": 40}'),
-  ('a4444444-4444-4444-4444-444444444444', 'Explain a time when you used algorithms to solve a problem.', 'Technical', 'Hard', ARRAY['Algorithms', 'Data Structures', 'Optimization'], true, '{"honesty": 50, "attitude": 40, "confidence": 50, "relevance": 60}'),
-  ('a5555555-5555-5555-5555-555555555555', 'What are your strengths as a software engineer?', 'Behavioral', 'Easy', ARRAY['Strengths', 'Self Assessment', 'Skills'], true, '{"honesty": 60, "attitude": 50, "confidence": 50, "relevance": 40}')
+-- 9. SEED DATA FOR DEMO & TESTING (Valid Hexadecimal UUIDs: 0-9, a-f)
+INSERT INTO public.candidates (id, full_name, email, position, status, score, resume_name, keywords) VALUES
+('c0000000-0000-0000-0000-000000000001', 'Janith Perera', 'janith.p@example.com', 'Senior Software Engineer', 'Evaluated', 92, 'janith_perera_cv.pdf', ARRAY['Java', 'SQL', 'Docker', 'React']),
+('c0000000-0000-0000-0000-000000000002', 'Sanduni Fernando', 'sanduni.f@example.com', 'Full Stack Developer', 'Evaluated', 88, 'sanduni_fernando_cv.pdf', ARRAY['Python', 'Node.js', 'PostgreSQL', 'Machine Learning']),
+('c0000000-0000-0000-0000-000000000003', 'Kavinda Silva', 'kavinda.s@example.com', 'DevOps Engineer', 'In Progress', 78, 'kavinda_silva_cv.pdf', ARRAY['AWS', 'Kubernetes', 'CI/CD', 'Terraform']),
+('c0000000-0000-0000-0000-000000000004', 'Nadeesha Jayawardena', 'nadeesha.j@example.com', 'Product Manager', 'Pending Review', 65, 'nadeesha_j_cv.pdf', ARRAY['Agile', 'Scrum', 'Jira', 'Roadmapping'])
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.interview_sessions (id, candidate_id, session_date, duration_seconds, questions_answered, questions_total, noise_level_db, validation_status, status, position, round) VALUES
-  ('b1111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', '2026-04-22T09:00:00Z', 1185, 5, 5, 42, true, 'Completed', 'Software Engineer', 'Round 1'),
-  ('b2222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222', '2026-04-20T14:00:00Z', 1320, 5, 5, 38, true, 'Completed', 'Marketing Manager', 'Round 1')
+INSERT INTO public.question_bank (id, question_text, category, difficulty, keywords) VALUES
+('b0000000-0000-0000-0000-000000000001', 'Explain the difference between clustered and non-clustered indexing in relational databases.', 'Technical', 'Medium', ARRAY['SQL', 'Indexing', 'B-Tree', 'Performance']),
+('b0000000-0000-0000-0000-000000000002', 'Describe a challenging project conflict you faced with a teammate and how you resolved it.', 'Behavioral', 'Medium', ARRAY['Conflict Resolution', 'Communication', 'Teamwork']),
+('b0000000-0000-0000-0000-000000000003', 'How do you handle zero-downtime database schema migrations in a high-traffic production system?', 'Technical', 'Hard', ARRAY['Migrations', 'Replication', 'Zero Downtime', 'Blue-Green']),
+('b0000000-0000-0000-0000-000000000004', 'What steps do you take when you encounter an unexpected critical system failure during an interview or deployment?', 'Situational', 'Hard', ARRAY['Incident Management', 'RCA', 'Recovery', 'Logs'])
 ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.behavioral_scores (id, session_id, honesty_score, attitude_score, confidence_score, relevance_score, overall_score) VALUES
-  ('c1111111-1111-1111-1111-111111111111', 'b1111111-1111-1111-1111-111111111111', 94.00, 89.00, 88.00, 91.00, 90.00),
-  ('c2222222-2222-2222-2222-222222222222', 'b2222222-2222-2222-2222-222222222222', 91.00, 90.00, 87.00, 88.00, 89.00)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.audit_logs (user_email, action, entity_type, details) VALUES
-  ('admin@modernmatrix.com', 'USER_LOGIN', 'auth', 'Admin logged in successfully'),
-  ('admin@modernmatrix.com', 'CANDIDATE_CREATED', 'candidate', 'Added candidate: Janith Perera'),
-  ('admin@modernmatrix.com', 'SESSION_STARTED', 'interview_session', 'Started session for Janith Perera'),
-  ('admin@modernmatrix.com', 'SESSION_ENDED', 'interview_session', 'Completed session - duration: 19m 45s'),
-  ('admin@modernmatrix.com', 'QUESTION_CREATED', 'question_bank', 'Added: Python experience question');

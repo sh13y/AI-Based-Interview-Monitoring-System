@@ -13,6 +13,57 @@ export const dummyUser = {
   created_at: '2026-01-10T08:00:00Z',
 };
 
+export const dummyUsers = [
+  {
+    id: 'usr-001',
+    user_id_field: 'EMP-001',
+    email: 'admin@modernmatrix.com',
+    first_name: 'Kasun',
+    last_name: 'Perera',
+    role: 'Admin',
+    is_locked: false,
+    is_verified: true,
+    created_at: '2026-01-10T08:00:00Z',
+    sessions_count: 5,
+  },
+  {
+    id: 'usr-002',
+    user_id_field: 'EMP-002',
+    email: 'hr.kavindi@modernmatrix.com',
+    first_name: 'Kavindi',
+    last_name: 'Senaratne',
+    role: 'HR_Manager',
+    is_locked: false,
+    is_verified: true,
+    created_at: '2026-02-01T09:30:00Z',
+    sessions_count: 8,
+  },
+  {
+    id: 'usr-003',
+    user_id_field: 'EMP-003',
+    email: 'hr.dinesh@modernmatrix.com',
+    first_name: 'Dinesh',
+    last_name: 'Bandara',
+    role: 'HR_Manager',
+    is_locked: false,
+    is_verified: true,
+    created_at: '2026-03-15T11:00:00Z',
+    sessions_count: 4,
+  },
+  {
+    id: 'usr-004',
+    user_id_field: 'EMP-004',
+    email: 'hr.amila@modernmatrix.com',
+    first_name: 'Amila',
+    last_name: 'Jayawardena',
+    role: 'HR_Manager',
+    is_locked: true,
+    is_verified: true,
+    created_at: '2026-04-01T14:20:00Z',
+    sessions_count: 2,
+  },
+];
+
 export const dummyCandidates = [
   {
     id: 'cand-001',
