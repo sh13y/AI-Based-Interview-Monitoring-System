@@ -53,4 +53,5 @@ venv/
 
 
 # Documentation files
-docs/*
+docs/
+/docs/
