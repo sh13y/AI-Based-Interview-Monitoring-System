@@ -219,3 +219,47 @@ INSERT INTO public.question_bank (id, question_text, category, difficulty, keywo
 ('b0000000-0000-0000-0000-000000000003', 'How do you handle zero-downtime database schema migrations in a high-traffic production system?', 'Technical', 'Hard', ARRAY['Migrations', 'Replication', 'Zero Downtime', 'Blue-Green']),
 ('b0000000-0000-0000-0000-000000000004', 'What steps do you take when you encounter an unexpected critical system failure during an interview or deployment?', 'Situational', 'Hard', ARRAY['Incident Management', 'RCA', 'Recovery', 'Logs'])
 ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================
+-- 10. WHISPER MODEL SCORE COLUMNS (FR-12 AI Scoring)
+-- Stores raw output from the trained Whisper ASR model
+-- ============================================================
+ALTER TABLE public.behavioral_scores ADD COLUMN IF NOT EXISTS whisper_predicted_score DECIMAL(5,2) DEFAULT NULL;
+ALTER TABLE public.behavioral_scores ADD COLUMN IF NOT EXISTS whisper_similarity_score DECIMAL(5,4) DEFAULT NULL;
+ALTER TABLE public.behavioral_scores ADD COLUMN IF NOT EXISTS whisper_is_relevant BOOLEAN DEFAULT NULL;
+ALTER TABLE public.behavioral_scores ADD COLUMN IF NOT EXISTS whisper_filename VARCHAR(255) DEFAULT NULL;
+
+-- ============================================================
+-- 11. AUDIO RECORDINGS STORAGE BUCKET (FR-06 Audio Stream Capture)
+-- Run this in the Supabase Dashboard → Storage → New Bucket
+-- OR execute via SQL editor (requires storage extension):
+-- ============================================================
+
+-- Create the audio-recordings bucket (public so playback URLs work)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'audio-recordings',
+  'audio-recordings',
+  true,
+  52428800,  -- 50 MB max per file
+  ARRAY['audio/wav', 'audio/webm', 'audio/ogg', 'audio/mpeg', 'audio/wave']
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- RLS: Allow public read (playback)
+DROP POLICY IF EXISTS "Public read audio recordings" ON storage.objects;
+CREATE POLICY "Public read audio recordings"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'audio-recordings');
+
+-- RLS: Allow authenticated inserts (recording upload)
+DROP POLICY IF EXISTS "Allow audio upload" ON storage.objects;
+CREATE POLICY "Allow audio upload"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'audio-recordings');
+
+-- RLS: Allow delete (for data purge FR-20)
+DROP POLICY IF EXISTS "Allow audio delete" ON storage.objects;
+CREATE POLICY "Allow audio delete"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'audio-recordings');

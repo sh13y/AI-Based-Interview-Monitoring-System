@@ -55,6 +55,109 @@ function writeString(view, offset, string) {
 }
 
 /**
+ * Converts raw Float32Array PCM chunks directly from Web Audio ScriptProcessor
+ * into a standardized 16kHz Mono 16-bit PCM WAV Blob with intelligent volume normalization.
+ * Bypasses browser WebM decoding entirely for 100% reliable microphone voice capture.
+ *
+ * @param {Float32Array[]} chunks - Array of Float32Array PCM chunks from audio processor
+ * @param {number} sourceSampleRate - Input sample rate (e.g. 48000 or 44100)
+ * @param {number} [targetSampleRate=16000] - Output sample rate for Whisper (16000 Hz)
+ * @returns {{ wavBlob: Blob, wavUrl: string, duration: number, wavSizeKb: number, sampleRate: number, channels: string, format: string } | null}
+ */
+export function pcmChunksToWav(chunks, sourceSampleRate, targetSampleRate = 16000) {
+  if (!chunks || chunks.length === 0) return null;
+
+  // 1. Calculate total samples
+  let totalLength = 0;
+  for (let i = 0; i < chunks.length; i++) {
+    totalLength += chunks[i].length;
+  }
+  if (totalLength === 0) return null;
+
+  // 2. Concatenate all chunks into a single Float32Array
+  const merged = new Float32Array(totalLength);
+  let offset = 0;
+  for (let i = 0; i < chunks.length; i++) {
+    merged.set(chunks[i], offset);
+    offset += chunks[i].length;
+  }
+
+  // 3. Peak detection & intelligent volume boost
+  let maxPeak = 0;
+  for (let i = 0; i < totalLength; i++) {
+    const abs = Math.abs(merged[i]);
+    if (abs > maxPeak) maxPeak = abs;
+  }
+
+  // Normalize so the loudest voice peak reaches 0.88 (-1.1 dB)
+  // If recording is quiet (e.g. laptop mic), boost up to 10x
+  const targetPeak = 0.88;
+  const gain = maxPeak > 0.005 ? Math.min(10.0, targetPeak / maxPeak) : 1.0;
+
+  // 4. High-quality linear interpolation resampling to 16,000 Hz
+  const ratio = sourceSampleRate / targetSampleRate;
+  const targetLength = Math.max(1, Math.round(totalLength / ratio));
+  const resampled = new Float32Array(targetLength);
+
+  for (let i = 0; i < targetLength; i++) {
+    const srcIndex = i * ratio;
+    const i0 = Math.floor(srcIndex);
+    const i1 = Math.min(i0 + 1, totalLength - 1);
+    const frac = srcIndex - i0;
+    const sample = (merged[i0] * (1 - frac) + merged[i1] * frac) * gain;
+    resampled[i] = Math.max(-1, Math.min(1, sample));
+  }
+
+  // 5. Build standard 16-bit PCM WAV container
+  const numChannels = 1;
+  const bitDepth = 16;
+  const dataLength = targetLength * 2; // 2 bytes per 16-bit sample
+  const bufferLength = 44 + dataLength;
+  const arrayBuffer = new ArrayBuffer(bufferLength);
+  const view = new DataView(arrayBuffer);
+
+  // RIFF header
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataLength, true);
+  writeString(view, 8, 'WAVE');
+
+  // fmt sub-chunk (16kHz Mono 16-bit Linear PCM)
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);                                // SubChunk1Size (16 for PCM)
+  view.setUint16(20, 1, true);                                 // AudioFormat (1 = PCM)
+  view.setUint16(22, numChannels, true);                       // NumChannels (1 = Mono)
+  view.setUint32(24, targetSampleRate, true);                  // SampleRate (16000)
+  view.setUint32(28, targetSampleRate * numChannels * 2, true);// ByteRate (32000)
+  view.setUint16(32, numChannels * 2, true);                   // BlockAlign (2)
+  view.setUint16(34, bitDepth, true);                          // BitsPerSample (16)
+
+  // data sub-chunk
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataLength, true);
+
+  // Write 16-bit PCM samples
+  let outOffset = 44;
+  for (let i = 0; i < targetLength; i++, outOffset += 2) {
+    const s = resampled[i];
+    view.setInt16(outOffset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+
+  const wavBlob = new Blob([view], { type: 'audio/wav' });
+  const duration = Math.max(1, Math.round(targetLength / targetSampleRate));
+
+  return {
+    wavBlob,
+    wavUrl: URL.createObjectURL(wavBlob),
+    duration,
+    originalSizeKb: Math.round(totalLength * 4 / 1024),
+    wavSizeKb: Math.round(wavBlob.size / 1024),
+    sampleRate: targetSampleRate,
+    channels: '1 (Mono)',
+    format: '16-bit Linear PCM WAV'
+  };
+}
+
+/**
  * Decodes, normalizes, and resamples raw audio blob to 16kHz mono WAV Blob
  * @param {Blob} rawAudioBlob 
  * @returns {Promise<{ wavBlob: Blob, wavUrl: string, duration: number, originalSizeKb: number, wavSizeKb: number }>}
@@ -86,15 +189,15 @@ export async function preprocessAudioToWav(rawAudioBlob) {
       }
     }
 
-    // Normalize to 90% peak (-0.9dB) if signal was quiet
+    // Normalize to 90% peak (-0.9dB) with up to 10x boost so quiet microphones are loudly audible
     const targetPeak = 0.90;
-    const normFactor = maxPeak > 0.05 ? Math.min(3.0, targetPeak / maxPeak) : 1.0;
+    const normFactor = maxPeak > 0.005 ? Math.min(10.0, targetPeak / maxPeak) : 1.0;
     gainNode.gain.value = normFactor;
 
-    // Low-pass filter to remove high-frequency hiss above speech threshold (4kHz cutoff for 16kHz sampling)
+    // Gentle low-pass filter at 7500Hz (preserves full human vocal range up to Nyquist for 16kHz audio)
     const biquadFilter = offlineContext.createBiquadFilter();
     biquadFilter.type = 'lowpass';
-    biquadFilter.frequency.value = 4000;
+    biquadFilter.frequency.value = 7500;
 
     source.connect(gainNode);
     gainNode.connect(biquadFilter);

@@ -17,12 +17,13 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import {
   Clock, Mic, MicOff, Pause, Play, CheckCircle2, Server,
   AlertTriangle, Volume2, FileText, Cpu, ChevronRight, ChevronLeft,
-  Download, Award, User, RefreshCw, BarChart2, Radio, Check, Sparkles, Sliders, Music, Headphones
+  Download, Award, User, RefreshCw, BarChart2, Radio, Check, Sparkles, Sliders, Music, Headphones, Upload, FlaskConical
 } from 'lucide-react';
 import { dummyInterviewSessions, dummyQuestions, dummyTranscripts, dummyBehavioralScores, dummyCandidates } from '../lib/dummyData';
-import { writeAuditLog } from '../lib/supabase';
+import { writeAuditLog, uploadAudioFile, saveInterviewSession, saveTranscript, saveBehavioralScores } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { preprocessAudioToWav, createSynthesizedWav } from '../lib/audioProcessor';
+import { preprocessAudioToWav, createSynthesizedWav, pcmChunksToWav } from '../lib/audioProcessor';
+import { callWhisperAPI, getScoreColor } from '../lib/whisperApi';
 import toast, { Toaster } from 'react-hot-toast';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -39,7 +40,7 @@ const PREPROCESS_STEPS = [
   'Resampling & Converting to standard WAV format (16kHz Mono, 16-bit PCM)...',
   'Applying speech bandpass noise reduction filter...',
   'Generating standardized audio artifact for Whisper ASR...',
-  'Audio preprocessing complete ✓',
+  'Sending audio to Whisper ASR model & retrieving transcript...',
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -68,6 +69,10 @@ const LiveInterview = () => {
   const [simulationMode, setSimulationMode] = useState(false);
   const [gainBoost, setGainBoost] = useState(2.5);
 
+  // Microphone Device Management & Diagnostics
+  const [audioDevices, setAudioDevices] = useState([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+
   // Real Processed Audio State
   const [recordedWavData, setRecordedWavData] = useState(null);
   const [realAudioUrl, setRealAudioUrl] = useState(null);
@@ -78,6 +83,18 @@ const LiveInterview = () => {
   const [showTranscript, setShowTranscript] = useState(false);
   const [transcript, setTranscript] = useState('');
 
+  // [FR-12] Whisper API result state
+  const [whisperResult, setWhisperResult] = useState(null);
+  const [whisperLoading, setWhisperLoading] = useState(false);
+  const [whisperError, setWhisperError] = useState(null);
+
+  // [DB] Saved session ID from Supabase (used to link transcript & scores)
+  const [dbSavedSessionId, setDbSavedSessionId] = useState(null);
+
+  // [TEST MODE] Temporary WAV upload for model testing
+  const [uploadedTestFile, setUploadedTestFile] = useState(null);
+  const [testUploading, setTestUploading] = useState(false);
+
   // Audio Playback state (Starts from 00:00)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
@@ -85,10 +102,13 @@ const LiveInterview = () => {
   // FR-07: Session Recovery
   const [sessionRestored, setSessionRestored] = useState(false);
 
-  // Refs for Web Audio API & MediaRecorder
+  // Refs for Web Audio API, Direct PCM Recording & MediaRecorder
   const streamRef = useRef(null);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
+  const scriptProcessorRef = useRef(null);
+  const pcmChunksRef = useRef([]);
+  const isRecordingRef = useRef(false);
   const mediaRecorderRef = useRef(null);
   const animFrameRef = useRef(null);
   const playbackAnimFrameRef = useRef(null);
@@ -181,8 +201,26 @@ const LiveInterview = () => {
       console.warn('Checkpoint restoration error:', e);
     }
 
+    // Load available audio input devices
+    loadAudioDevices();
+
     return () => cleanup();
   }, [id, searchParams]);
+
+  // ── Load audio devices (Microphones) ───────────────────────────────────────
+  const loadAudioDevices = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter((d) => d.kind === 'audioinput');
+      setAudioDevices(inputs);
+      if (inputs.length > 0 && !selectedDeviceId) {
+        const nonStereo = inputs.find((d) => !d.label.toLowerCase().includes('stereo mix')) || inputs[0];
+        setSelectedDeviceId(nonStereo.deviceId);
+      }
+    } catch (e) {
+      console.warn('Could not enumerate audio devices:', e);
+    }
+  };
 
   // [FR-08: Session Interruption Recovery] Save state on browser tab close / refresh
   useEffect(() => {
@@ -414,7 +452,8 @@ const LiveInterview = () => {
             const energy = Math.max(freqVal * gainBoost, timeDev * gainBoost * 1.5);
             const centerWeight = Math.sin((i / (numBars - 1)) * Math.PI);
             barHeight = Math.max(8, energy * (height - 16) * (0.35 + 0.65 * centerWeight));
-          } else {
+          } else if (simulationMode) {
+            // ONLY draw fake animated waves if simulation mode is manually enabled
             const wave1 = Math.sin(animationPhase * 2.5 + i * 0.28) * 0.5 + 0.5;
             const wave2 = Math.cos(animationPhase * 1.8 + i * 0.45) * 0.5 + 0.5;
             const wave3 = Math.sin(animationPhase * 3.7 + i * 0.15) * 0.5 + 0.5;
@@ -422,17 +461,17 @@ const LiveInterview = () => {
 
             const voicePulse = (wave1 * 0.45 + wave2 * 0.35 + wave3 * 0.2) * (height - 20) * centerWeight;
             barHeight = Math.max(8, voicePulse + Math.sin(animationPhase + i * 0.5) * 4 + 10);
-
             calculatedDb = Math.round(44 + Math.sin(animationPhase * 2) * 12 + Math.cos(animationPhase * 3) * 6);
+          } else {
+            // Real mic connected: user is silent. Show small ambient resting floor (NO fake dancing bars!)
+            const timeDev = Math.abs(timeData[i] - 128) / 128;
+            barHeight = Math.max(6, Math.min(18, timeDev * 50 * gainBoost + 6));
+            calculatedDb = 32;
           }
         } else {
-          barHeight = Math.max(6, Math.sin(animationPhase + i * 0.3) * 4 + 8);
-          calculatedDb = 35;
+          barHeight = Math.max(6, Math.sin(animationPhase + i * 0.3) * 3 + 6);
+          calculatedDb = 32;
         }
-
-        calculatedDb = Math.max(32, Math.min(95, calculatedDb));
-        setCurrentNoiseDb(calculatedDb);
-        setNoiseWarning(calculatedDb > NOISE_THRESHOLD_DB);
 
         const x = barSpacing + i * (totalBarWidth + barSpacing);
         const y = (height - barHeight) / 2;
@@ -461,6 +500,11 @@ const LiveInterview = () => {
         }
         ctx.fill();
       }
+
+      // Update noise state once per frame (not 54 times per frame)
+      calculatedDb = Math.max(30, Math.min(95, calculatedDb));
+      setCurrentNoiseDb(calculatedDb);
+      setNoiseWarning(calculatedDb > NOISE_THRESHOLD_DB);
 
       animFrameRef.current = requestAnimationFrame(drawFrame);
     };
@@ -530,38 +574,114 @@ const LiveInterview = () => {
   }, [viewMode, isPlayingAudio, playbackTime, session, recordedWavData]);
 
   // ── Request microphone & initialise Web Audio (FR-05) ─────────────────────
-  const initMicrophone = async () => {
+  const initMicrophone = async (preferredDeviceId = null) => {
+    // 1. Stop existing tracks and disconnect previous script processor
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (scriptProcessorRef.current) {
+      try { scriptProcessorRef.current.disconnect(); } catch (_) {}
+      scriptProcessorRef.current = null;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const targetDeviceId = preferredDeviceId || selectedDeviceId;
+      const constraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+          ...(targetDeviceId ? { deviceId: { exact: targetDeviceId } } : {}),
+        },
+        video: false,
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
 
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // Re-enumerate to get actual device labels now that permission is granted
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter((d) => d.kind === 'audioinput');
+      setAudioDevices(inputs);
+
+      // Track active device ID
+      const activeTrack = stream.getAudioTracks()[0];
+      const trackDeviceId = activeTrack?.getSettings()?.deviceId;
+      if (trackDeviceId) {
+        setSelectedDeviceId(trackDeviceId);
+      }
+
+      // Check if selected device is Stereo Mix and warn
+      const activeDeviceObj = inputs.find((d) => d.deviceId === (trackDeviceId || targetDeviceId));
+      if (activeDeviceObj?.label?.toLowerCase().includes('stereo mix')) {
+        toast('Stereo Mix is active — this records PC audio, not your voice. Please select your microphone!', {
+          icon: '⚠️',
+          duration: 6000,
+        });
+      }
+
+      const ctx = audioContextRef.current && audioContextRef.current.state !== 'closed'
+        ? audioContextRef.current
+        : new (window.AudioContext || window.webkitAudioContext)();
       audioContextRef.current = ctx;
 
       if (ctx.state === 'suspended') {
         await ctx.resume();
       }
 
-      setAudioFormat({ sampleRate: ctx.sampleRate, channels: 1, format: 'PCM' });
+      setAudioFormat({ sampleRate: ctx.sampleRate, channels: 1, format: '16-bit PCM' });
 
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.7;
+      analyser.smoothingTimeConstant = 0.6;
       source.connect(analyser);
       analyserRef.current = analyser;
 
-      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
-      chunksRef.current = [];
-      mr.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          chunksRef.current.push(e.data);
-        }
+      // Direct Web Audio PCM Capture (ScriptProcessorNode)
+      // Captures raw Float32Array PCM samples directly from the microphone
+      // Completely bypasses browser WebM container & decoding bugs
+      const bufferSize = 4096;
+      const scriptNode = ctx.createScriptProcessor(bufferSize, 1, 1);
+      pcmChunksRef.current = [];
+
+      scriptNode.onaudioprocess = (e) => {
+        if (!isRecordingRef.current) return;
+        const inputData = e.inputBuffer.getChannelData(0);
+        pcmChunksRef.current.push(new Float32Array(inputData));
       };
-      mediaRecorderRef.current = mr;
+
+      // Connect through a silent gain node to prevent speaker feedback
+      const silentGain = ctx.createGain();
+      silentGain.gain.value = 0;
+      source.connect(scriptNode);
+      scriptNode.connect(silentGain);
+      silentGain.connect(ctx.destination);
+      scriptProcessorRef.current = scriptNode;
+
+      // Secondary backup: standard MediaRecorder
+      try {
+        let mimeType = 'audio/webm;codecs=opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+        }
+        const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+        chunksRef.current = [];
+        mr.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            chunksRef.current.push(e.data);
+          }
+        };
+        mediaRecorderRef.current = mr;
+      } catch (mrErr) {
+        console.warn('MediaRecorder backup init note:', mrErr);
+      }
 
       setMicGranted(true);
       setMicError(null);
+      setSimulationMode(false);
       startRecording();
 
       await writeAuditLog({
@@ -582,6 +702,7 @@ const LiveInterview = () => {
   };
 
   const startRecording = () => {
+    isRecordingRef.current = true;
     if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume().catch(console.warn);
     }
@@ -595,6 +716,7 @@ const LiveInterview = () => {
   };
 
   const pauseRecording = () => {
+    isRecordingRef.current = false;
     if (mediaRecorderRef.current?.state === 'recording') {
       try { mediaRecorderRef.current.pause(); } catch (_) {}
     }
@@ -602,6 +724,7 @@ const LiveInterview = () => {
   };
 
   const resumeRecording = () => {
+    isRecordingRef.current = true;
     if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume().catch(console.warn);
     }
@@ -612,27 +735,75 @@ const LiveInterview = () => {
   };
 
   const cleanup = () => {
+    isRecordingRef.current = false;
     clearInterval(timerRef.current);
     clearInterval(checkpointRef.current);
+    if (scriptProcessorRef.current) {
+      try { scriptProcessorRef.current.disconnect(); } catch (_) {}
+      scriptProcessorRef.current = null;
+    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try { mediaRecorderRef.current.stop(); } catch (_) {}
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
     }
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close().catch(console.warn);
     }
   };
 
-  // ── End Interview → Real Preprocessing Flow & 16kHz WAV Conversion (FR-08 & FR-09)
+  // ── [TEST MODE] Direct WAV upload → Whisper API bypass ───────────────────
+  // Temporary function: skips recording, sends uploaded WAV directly to model
+  const handleTestUpload = async (file) => {
+    if (!file) return;
+    setUploadedTestFile(file);
+    setTestUploading(true);
+    setShowPreprocess(true);
+    setPreprocessStep(0);
+
+    // Animate through preprocess steps quickly
+    let step = 0;
+    const interval = setInterval(() => {
+      step++;
+      setPreprocessStep(step);
+      if (step >= PREPROCESS_STEPS.length - 1) {
+        clearInterval(interval);
+      }
+    }, 400);
+
+    // Wait a moment for the animation to start, then call API
+    setTimeout(async () => {
+      setWhisperLoading(true);
+      setWhisperError(null);
+      setWhisperResult(null);
+      try {
+        const apiResult = await callWhisperAPI(file);
+        setWhisperResult(apiResult);
+        setTranscript(apiResult.transcript || '');
+        // Set fake audio URL from the uploaded file so the player shows it
+        const url = URL.createObjectURL(file);
+        setRealAudioUrl(url);
+        setRecordedWavData({ wavBlob: file, wavUrl: url, duration: 30, wavSizeKb: Math.round(file.size / 1024), sampleRate: 16000, channels: '1 (Mono)', format: '16-bit Linear PCM WAV' });
+        toast.success('Whisper model processed your uploaded file!');
+      } catch (err) {
+        setWhisperError(err.message || 'API call failed.');
+        const t = dummyTranscripts['ses-001'];
+        setTranscript(t);
+        toast.error('API error — showing fallback transcript.', { duration: 5000 });
+      } finally {
+        setWhisperLoading(false);
+        setTestUploading(false);
+        setShowPreprocess(false);
+        setShowTranscript(true);
+      }
+    }, PREPROCESS_STEPS.length * 400 + 200);
+  };
+
+  // ── End Interview → Save to DB + Preprocessing + Whisper API (FR-06, FR-08, FR-09, FR-12)
   const handleEndInterview = async () => {
     pauseRecording();
-
-    // Stop MediaRecorder and collect all chunks
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      try { mediaRecorderRef.current.stop(); } catch (_) {}
-    }
 
     if (session) localStorage.removeItem(CHECKPOINT_KEY(session.id));
 
@@ -647,47 +818,162 @@ const LiveInterview = () => {
     setShowPreprocess(true);
     setPreprocessStep(0);
 
-    // Create raw recording Blob from microphone chunks
-    let rawBlob;
-    if (chunksRef.current.length > 0) {
-      rawBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
-    }
+    // ── Step A: Collect complete audio after MediaRecorder fully stops ─────────
+    const getRawBlob = () =>
+      new Promise((resolve) => {
+        const mr = mediaRecorderRef.current;
+        if (!mr || mr.state === 'inactive') {
+          const blob = chunksRef.current.length > 0
+            ? new Blob(chunksRef.current, { type: 'audio/webm' })
+            : null;
+          resolve(blob);
+          return;
+        }
+        mr.onstop = () => {
+          const blob = chunksRef.current.length > 0
+            ? new Blob(chunksRef.current, { type: 'audio/webm' })
+            : null;
+          resolve(blob);
+        };
+        try { mr.stop(); } catch (_) { resolve(null); }
+      });
 
-    // Step-by-step interactive processing simulation with real audio conversion
+    const rawBlob = await getRawBlob();
+
+    // Step-by-step preprocessing animation
     let step = 0;
+    let convertedWavBlob = null;
     const interval = setInterval(async () => {
       step++;
       setPreprocessStep(step);
 
       if (step === 3) {
-        // Step 3: Perform genuine 16kHz Mono WAV conversion on the recorded audio
+        // ── Step B: Convert to 16kHz WAV with Crystal Clear Voice ────────────
         try {
-          let processed;
-          if (rawBlob && rawBlob.size > 100) {
+          let processed = null;
+          const sampleRate = audioContextRef.current?.sampleRate || 48000;
+
+          // Priority 1: Direct Web Audio Float32Array PCM samples (100% reliable & loud)
+          if (pcmChunksRef.current && pcmChunksRef.current.length > 0) {
+            processed = pcmChunksToWav(pcmChunksRef.current, sampleRate, 16000);
+          }
+
+          // Priority 2: Decoded MediaRecorder WebM blob fallback
+          if (!processed && rawBlob && rawBlob.size > 100) {
             processed = await preprocessAudioToWav(rawBlob);
-          } else {
-            // Synthesize fallback 16kHz speech tone if recording was under 1s
+          }
+
+          // Priority 3: Fallback test tone
+          if (!processed) {
             processed = createSynthesizedWav(Math.max(3, elapsedSeconds));
           }
+
           setRecordedWavData(processed);
           setRealAudioUrl(processed.wavUrl);
+          convertedWavBlob = processed.wavBlob;
         } catch (convErr) {
           console.warn('WAV conversion fallback:', convErr);
           const fallback = createSynthesizedWav(Math.max(3, elapsedSeconds));
           setRecordedWavData(fallback);
           setRealAudioUrl(fallback.wavUrl);
+          convertedWavBlob = fallback.wavBlob;
         }
       }
 
       if (step >= PREPROCESS_STEPS.length - 1) {
         clearInterval(interval);
-        setTimeout(() => {
+
+        // ── Step C: Upload WAV to Supabase Storage ─────────────────────────────
+        let audioPublicUrl = null;
+        let audioSizeKb = null;
+        let dbSessionId = null;
+
+        if (convertedWavBlob) {
+          toast.loading('Saving audio to cloud storage...', { id: 'db-save' });
+          const tempSessionId = session?.id || `ses-${Date.now()}`;
+          const uploadResult = await uploadAudioFile(
+            convertedWavBlob,
+            tempSessionId,
+            candidate?.id || 'unknown'
+          );
+          audioPublicUrl = uploadResult.publicUrl;
+          audioSizeKb = uploadResult.sizeKb;
+          if (uploadResult.error) {
+            console.warn('[Upload] Audio upload warning:', uploadResult.error);
+          }
+        }
+
+        // ── Step D: Save interview session row to DB ───────────────────────────
+        toast.loading('Saving interview session...', { id: 'db-save' });
+        const sessionResult = await saveInterviewSession({
+          candidateId: candidate?.id,
+          userId: user?.id || null,
+          durationSeconds: elapsedSeconds,
+          questionsAnswered: activeQuestionIdx + 1,
+          noiseLevelDb: currentNoiseDb,
+          position: session?.position || '',
+          round: session?.round || 'Round 1',
+          audioUrl: audioPublicUrl,
+          audioSizeKb,
+          status: 'Pending Review',
+        });
+        dbSessionId = sessionResult.id;
+        setDbSavedSessionId(dbSessionId);
+        if (sessionResult.error) {
+          console.warn('[Session] DB save warning:', sessionResult.error);
+        }
+        toast.dismiss('db-save');
+
+        // ── Step E: Call Whisper API ────────────────────────────────────────────
+        setWhisperLoading(true);
+        setWhisperError(null);
+        setWhisperResult(null);
+
+        try {
+          const apiResult = await callWhisperAPI(convertedWavBlob);
+          setWhisperResult(apiResult);
+          setTranscript(apiResult.transcript || '');
+          toast.success('Whisper ASR model processed audio successfully!');
+
+          // ── Step F: Save transcript + scores to DB in parallel ─────────────
+          if (dbSessionId) {
+            const [transcriptResult, scoresResult] = await Promise.allSettled([
+              saveTranscript({
+                sessionId: dbSessionId,
+                rawText: apiResult.transcript || '',
+              }),
+              saveBehavioralScores({
+                sessionId: dbSessionId,
+                predictedScore: apiResult.predicted_score,
+                similarityScore: apiResult.similarity_score,
+                isRelevant: apiResult.is_relevant,
+                filename: apiResult.filename,
+              }),
+            ]);
+
+            if (transcriptResult.status === 'fulfilled' && !transcriptResult.value.error) {
+              toast.success('Transcript saved to database ✓');
+            } else {
+              console.warn('[Transcript] Save failed:', transcriptResult.reason || transcriptResult.value?.error);
+            }
+            if (scoresResult.status === 'fulfilled' && !scoresResult.value.error) {
+              toast.success('AI scores saved to database ✓');
+            } else {
+              console.warn('[Scores] Save failed:', scoresResult.reason || scoresResult.value?.error);
+            }
+          }
+        } catch (apiErr) {
+          console.warn('Whisper API error — using fallback transcript:', apiErr);
+          setWhisperError(apiErr.message || 'Failed to connect to Whisper ASR model.');
           const t = dummyTranscripts[session?.id] || dummyTranscripts['ses-001'];
           setTranscript(t);
+          toast.error('AI scoring unavailable — showing local fallback transcript.', { duration: 5000 });
+        } finally {
+          setWhisperLoading(false);
           setShowTranscript(true);
           setShowPreprocess(false);
           toast.success('Audio successfully converted to 16kHz WAV format!');
-        }, 800);
+        }
       }
     }, 850);
   };
@@ -874,12 +1160,111 @@ const LiveInterview = () => {
         <div className="bg-[#252525] rounded-xl border border-gray-800 p-6">
           <div className="flex items-center gap-2 mb-4">
             <FileText className="w-5 h-5 text-[#d4a843]" />
-            <h2 className="text-white text-sm font-bold">Whisper Transcription Output</h2>
+            <h2 className="text-white text-sm font-bold">Whisper ASR Transcription Output</h2>
+            {whisperLoading && (
+              <span className="flex items-center gap-1.5 text-[#d4a843] text-xs ml-auto animate-pulse">
+                <div className="w-3.5 h-3.5 border-2 border-[#d4a843] border-t-transparent rounded-full animate-spin" />
+                Analysing with Whisper model...
+              </span>
+            )}
+            {whisperResult && !whisperLoading && (
+              <span className="ml-auto text-[#a8b88c] text-xs flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Live AI Result
+              </span>
+            )}
+            {whisperError && !whisperLoading && (
+              <span className="ml-auto text-[#d4a843] text-xs flex items-center gap-1">
+                <AlertTriangle className="w-3.5 h-3.5" /> Fallback Transcript
+              </span>
+            )}
           </div>
+
+          {/* Error Banner */}
+          {whisperError && (
+            <div className="mb-4 flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3.5">
+              <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-amber-300 text-xs font-semibold">AI Scoring Unavailable</p>
+                <p className="text-amber-400/80 text-[11px] mt-0.5">{whisperError}</p>
+                <p className="text-gray-400 text-[11px] mt-1">Showing local fallback transcript. Update <code className="font-mono text-amber-300">VITE_WHISPER_API_URL</code> in <code className="font-mono text-amber-300">.env.local</code> to enable live scoring.</p>
+              </div>
+            </div>
+          )}
+
           <pre className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap font-mono bg-[#1e1e1e] rounded-lg p-4 border border-gray-800 max-h-72 overflow-y-auto">
-            {transcript}
+            {whisperLoading ? 'Processing audio with Whisper ASR model...' : transcript}
           </pre>
         </div>
+
+        {/* AI Model Score Card — shown only when API returned a real result */}
+        {whisperResult && (
+          <div className="bg-[#252525] rounded-xl border border-gray-800 p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <Sparkles className="w-5 h-5 text-[#d4a843]" />
+              <h2 className="text-white text-sm font-bold">Whisper AI Model Scores</h2>
+              <span className="ml-auto text-[10px] text-gray-500 font-mono">filename: {whisperResult.filename}</span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              {/* Predicted Score */}
+              <div className="bg-[#1e1e1e] rounded-xl border border-gray-800 p-4 text-center">
+                <p className="text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-2">Predicted Score</p>
+                <p className={`text-3xl font-extrabold ${
+                  getScoreColor(whisperResult.predicted_score) === 'green' ? 'text-[#a8b88c]' :
+                  getScoreColor(whisperResult.predicted_score) === 'amber' ? 'text-[#d4a843]' : 'text-red-400'
+                }`}>
+                  {whisperResult.predicted_score.toFixed(2)}
+                </p>
+                <p className="text-gray-600 text-[10px] mt-1">out of 10.00</p>
+                <div className="mt-3 w-full bg-gray-800 rounded-full h-1.5">
+                  <div
+                    className={`h-1.5 rounded-full transition-all ${
+                      getScoreColor(whisperResult.predicted_score) === 'green' ? 'bg-[#a8b88c]' :
+                      getScoreColor(whisperResult.predicted_score) === 'amber' ? 'bg-[#d4a843]' : 'bg-red-400'
+                    }`}
+                    style={{ width: `${Math.min(100, (whisperResult.predicted_score / 10) * 100).toFixed(1)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Similarity Score */}
+              <div className="bg-[#1e1e1e] rounded-xl border border-gray-800 p-4 text-center">
+                <p className="text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-2">Similarity Score</p>
+                <p className="text-3xl font-extrabold text-[#d4a843]">
+                  {(whisperResult.similarity_score * 100).toFixed(1)}
+                  <span className="text-lg font-semibold text-gray-500">%</span>
+                </p>
+                <p className="text-gray-600 text-[10px] mt-1">semantic relevance</p>
+                <div className="mt-3 w-full bg-gray-800 rounded-full h-1.5">
+                  <div
+                    className="h-1.5 rounded-full bg-[#d4a843] transition-all"
+                    style={{ width: `${(whisperResult.similarity_score * 100).toFixed(1)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Relevance Badge */}
+              <div className="bg-[#1e1e1e] rounded-xl border border-gray-800 p-4 text-center flex flex-col items-center justify-center gap-2">
+                <p className="text-gray-500 text-[10px] font-medium uppercase tracking-wider">Answer Relevance</p>
+                {whisperResult.is_relevant ? (
+                  <>
+                    <div className="w-12 h-12 rounded-full bg-[#a8b88c]/15 border-2 border-[#a8b88c]/40 flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6 text-[#a8b88c]" />
+                    </div>
+                    <span className="text-[#a8b88c] text-xs font-bold">Relevant</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-12 h-12 rounded-full bg-red-500/10 border-2 border-red-500/30 flex items-center justify-center">
+                      <AlertTriangle className="w-6 h-6 text-red-400" />
+                    </div>
+                    <span className="text-red-400 text-xs font-bold">Not Relevant</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Action Footer */}
         <div className="flex items-center justify-between bg-[#252525] rounded-xl border border-gray-800 p-4">
@@ -1244,6 +1629,64 @@ const LiveInterview = () => {
           </div>
 
           {/* 60 FPS HTML5 Canvas Dynamic Waveform Visualizer (FR-05 & FR-06) */}
+          {/* [TEST MODE] WAV File Upload Panel — for testing Whisper model without recording */}
+          <div className="bg-[#252525] rounded-xl border-2 border-dashed border-[#d4a843]/50 p-5 space-y-3 relative overflow-hidden">
+            {/* Amber glow badge */}
+            <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 bg-[#d4a843]/15 border border-[#d4a843]/40 rounded-full">
+              <FlaskConical className="w-3 h-3 text-[#d4a843]" />
+              <span className="text-[#d4a843] text-[10px] font-bold uppercase tracking-wider">Test Mode</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Upload className="w-4 h-4 text-[#d4a843]" />
+              <h3 className="text-white text-xs font-bold uppercase tracking-wider">Upload WAV File — Test Whisper Model</h3>
+            </div>
+            <p className="text-gray-500 text-[11px]">
+              Skip live recording. Upload a <code className="text-[#d4a843] font-mono">.wav</code> file directly to test the API. Remove this panel before production.
+            </p>
+
+            <label
+              htmlFor="wav-test-upload"
+              className={`flex flex-col items-center justify-center gap-2 w-full py-6 rounded-xl border-2 border-dashed cursor-pointer transition ${
+                testUploading
+                  ? 'border-[#d4a843]/60 bg-[#d4a843]/5 cursor-wait'
+                  : 'border-gray-700 hover:border-[#d4a843]/60 hover:bg-[#d4a843]/5'
+              }`}
+            >
+              {testUploading ? (
+                <>
+                  <div className="w-8 h-8 border-2 border-[#d4a843] border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[#d4a843] text-xs font-semibold">Sending to Whisper model...</span>
+                </>
+              ) : uploadedTestFile ? (
+                <>
+                  <CheckCircle2 className="w-8 h-8 text-[#a8b88c]" />
+                  <span className="text-[#a8b88c] text-xs font-bold">{uploadedTestFile.name}</span>
+                  <span className="text-gray-500 text-[10px]">{(uploadedTestFile.size / 1024).toFixed(1)} KB · Click to re-upload</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-8 h-8 text-gray-600" />
+                  <span className="text-gray-400 text-xs">Click to choose a <span className="text-[#d4a843] font-semibold">.wav</span> file</span>
+                  <span className="text-gray-600 text-[10px]">16kHz Mono WAV recommended for best results</span>
+                </>
+              )}
+              <input
+                id="wav-test-upload"
+                type="file"
+                accept=".wav,audio/wav,audio/wave"
+                className="hidden"
+                disabled={testUploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleTestUpload(file);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+          </div>
+
+          {/* 60 FPS HTML5 Canvas Dynamic Waveform Visualizer (FR-05 & FR-06) */}
           <div className="bg-[#252525] rounded-xl p-6 border border-gray-800 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1369,34 +1812,115 @@ const LiveInterview = () => {
 
           {/* System Diagnostics & Controls */}
           <div className="bg-[#252525] rounded-xl p-5 border border-gray-800 space-y-3.5">
-            <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Audio Stream Diagnostics</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Audio Stream Diagnostics</h3>
+              <button
+                onClick={() => {
+                  loadAudioDevices();
+                  if (selectedDeviceId) initMicrophone(selectedDeviceId);
+                  toast('Refreshed audio devices', { icon: '🔄' });
+                }}
+                className="text-[11px] text-[#a8b88c] hover:underline flex items-center gap-1"
+                title="Refresh detected microphones"
+              >
+                <RefreshCw className="w-3 h-3" /> Refresh
+              </button>
+            </div>
+
+            {/* Microphone Device Picker */}
+            <div className="p-3 bg-[#1e1e1e] rounded-lg border border-gray-800 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-300 font-semibold flex items-center gap-1.5">
+                  <Mic className="w-3.5 h-3.5 text-[#a8b88c]" /> Microphone Device:
+                </span>
+                <span className="text-[10px] text-gray-500 font-mono">
+                  {audioDevices.length} available
+                </span>
+              </div>
+
+              {audioDevices.length > 0 ? (
+                <select
+                  value={selectedDeviceId}
+                  onChange={(e) => {
+                    const newId = e.target.value;
+                    setSelectedDeviceId(newId);
+                    initMicrophone(newId);
+                  }}
+                  className="w-full bg-[#161616] border border-gray-700 text-xs text-white rounded-lg px-2.5 py-2 focus:border-[#a8b88c] focus:outline-none truncate"
+                >
+                  {audioDevices.map((d, i) => (
+                    <option key={d.deviceId || i} value={d.deviceId}>
+                      {d.label || `Microphone ${i + 1}`}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-[11px] text-gray-500 italic">
+                  Microphone list will appear after permission is granted.
+                </p>
+              )}
+
+              {/* Stereo Mix Warning Banner */}
+              {audioDevices.find((d) => d.deviceId === selectedDeviceId)?.label?.toLowerCase().includes('stereo mix') && (
+                <div className="p-2 bg-amber-500/15 border border-amber-500/40 rounded-lg text-amber-300 text-[11px] leading-tight flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-400 mt-0.5" />
+                  <div>
+                    <b>"Stereo Mix" selected!</b> This only records internal PC audio (YouTube/games), <b>not your voice</b>. Please switch to your real microphone above.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sensitivity & Gain Boost Control */}
+            <div className="p-3 bg-[#1e1e1e] rounded-lg border border-gray-800 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-300 font-semibold flex items-center gap-1.5">
+                  <Sliders className="w-3.5 h-3.5 text-[#d4a843]" /> Mic Sensitivity Boost:
+                </span>
+                <span className="text-[#d4a843] font-mono font-bold text-xs">{gainBoost}x</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="5"
+                step="0.5"
+                value={gainBoost}
+                onChange={(e) => setGainBoost(Number(e.target.value))}
+                className="w-full accent-[#d4a843] cursor-pointer h-1.5 bg-gray-800 rounded-lg"
+              />
+              <div className="flex justify-between text-[10px] text-gray-500 font-mono">
+                <span>1x (Normal)</span>
+                <span>2.5x (Optimal)</span>
+                <span>5x (High)</span>
+              </div>
+            </div>
 
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between p-2 bg-[#1e1e1e] rounded-lg border border-gray-800">
                 <span className="text-gray-400">Microphone Stream:</span>
                 <span className={`font-bold flex items-center gap-1 ${micGranted && !simulationMode ? 'text-green-400' : 'text-[#d4a843]'}`}>
-                  <CheckCircle2 className="w-3.5 h-3.5" /> {micGranted && !simulationMode ? 'Connected' : 'Simulation Mode'}
+                  <CheckCircle2 className="w-3.5 h-3.5" /> {micGranted && !simulationMode ? 'Connected (Direct PCM)' : 'Simulation Mode'}
                 </span>
               </div>
 
               <div className="flex items-center justify-between p-2 bg-[#1e1e1e] rounded-lg border border-gray-800">
-                <span className="text-gray-400">Web Audio Context:</span>
+                <span className="text-gray-400">Web Audio Pipeline:</span>
                 <span className="text-green-400 font-bold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> 48 kHz / 60 FPS
+                  <CheckCircle2 className="w-3.5 h-3.5" /> {audioFormat.sampleRate / 1000} kHz / 16-bit
                 </span>
               </div>
 
               <div className="flex items-center justify-between p-2 bg-[#1e1e1e] rounded-lg border border-gray-800">
                 <span className="text-gray-400">Audio Checkpoint:</span>
                 <span className="text-blue-400 font-bold flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" /> Active (5s Auto)
+                  <Clock className="w-3.5 h-3.5" /> Active (1s Real-Time)
                 </span>
               </div>
             </div>
 
             {!micGranted && (
               <button
-                onClick={initMicrophone}
+                onClick={() => initMicrophone()}
                 className="w-full py-2.5 bg-[#a8b88c] text-gray-900 font-bold rounded-lg text-xs hover:bg-[#98a87c] transition shadow"
               >
                 Connect Physical Microphone
