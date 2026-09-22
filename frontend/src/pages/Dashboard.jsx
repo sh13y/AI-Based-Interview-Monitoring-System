@@ -351,9 +351,15 @@ export const Dashboard = () => {
                       {[40, 65, 30, 85, 95, 55, 75, 45, 90, 60, 35, 70, 50, 80, 40, 60].map((h, i) => (
                         <div
                           key={i}
-                          style={{ height: `${h}%` }}
-                          className={`w-1 rounded-full transition-all duration-300 ${
-                            session.status === 'VERIFIED NOMINAL' ? 'bg-[#10b981]/70' : 'bg-[#f59e0b]/70'
+                          style={{
+                            height: `${h}%`,
+                            animationDelay: `${(i % 8) * 120}ms`,
+                            animationDuration: '1.4s',
+                          }}
+                          className={`w-1 rounded-full animate-pulse transition-all ${
+                            session.status === 'VERIFIED NOMINAL'
+                              ? 'bg-gradient-to-t from-[#064e3b] via-[#10b981] to-[#38bdf8]'
+                              : 'bg-gradient-to-t from-[#7f1d1d] via-[#ef4444] to-[#fca5a5]'
                           }`}
                         />
                       ))}

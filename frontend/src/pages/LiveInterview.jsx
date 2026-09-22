@@ -130,6 +130,7 @@ const LiveInterview = () => {
   // Canvas Refs (Waveform & Spectrogram visualizer)
   const liveCanvasRef = useRef(null);
   const playbackCanvasRef = useRef(null);
+  const peakHoldRef = useRef(new Float32Array(60));
 
 
   const sessionQuestions = dummyQuestions.slice(0, 5);
@@ -401,6 +402,8 @@ const LiveInterview = () => {
     const ctx = canvas.getContext('2d');
 
     let animationPhase = 0;
+    const numBars = 60;
+    const peakHold = peakHoldRef.current;
 
     const drawFrame = () => {
       const width = canvas.width;
@@ -408,18 +411,13 @@ const LiveInterview = () => {
 
       ctx.clearRect(0, 0, width, height);
 
-      // Background subtle grid
-      ctx.fillStyle = '#1e1e1e';
-      ctx.fillRect(0, 0, width, height);
+      // 1. Obsidian Deep Void Background with Dynamic Audio Radial Glow
+      let calculatedDb = 34;
+      let hasRealInput = false;
 
-      const numBars = 54;
-      const barSpacing = 3;
-      const totalBarWidth = (width - (numBars + 1) * barSpacing) / numBars;
-
+      // Extract Audio Data from AnalyserNode
       let freqData = new Uint8Array(numBars);
       let timeData = new Uint8Array(numBars);
-      let hasRealInput = false;
-      let calculatedDb = 36;
 
       if (analyserRef.current && micGranted) {
         const bufferLength = analyserRef.current.frequencyBinCount;
@@ -442,15 +440,74 @@ const LiveInterview = () => {
         }
 
         for (let i = 0; i < numBars; i++) {
-          const sampleIdx = Math.floor(Math.pow(i / numBars, 1.3) * Math.min(bufferLength, 60));
+          const sampleIdx = Math.floor(Math.pow(i / numBars, 1.3) * Math.min(bufferLength, 75));
           freqData[i] = rawFreq[sampleIdx] || 0;
           timeData[i] = rawTime[Math.floor((i / numBars) * bufferLength)] || 128;
         }
       }
 
-      animationPhase += isRecording ? 0.08 : 0.02;
+      // Dynamic Radial Acoustic Glow
+      const bgGrad = ctx.createRadialGradient(
+        width / 2,
+        height / 2,
+        10,
+        width / 2,
+        height / 2,
+        width * 0.65
+      );
+      if (isRecording) {
+        if (calculatedDb > NOISE_THRESHOLD_DB) {
+          bgGrad.addColorStop(0, '#1c0a0e');
+          bgGrad.addColorStop(1, '#0a0e16');
+        } else {
+          bgGrad.addColorStop(0, '#0c1a16');
+          bgGrad.addColorStop(1, '#0a0e16');
+        }
+      } else {
+        bgGrad.addColorStop(0, '#0d131f');
+        bgGrad.addColorStop(1, '#0a0e16');
+      }
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
 
-      // Draw Equalizer Bars
+      // 2. Technical dB Reference Grid Lines & Decibel Markings
+      const gridLevels = [
+        { db: '0 dB', y: height * 0.12 },
+        { db: '-6 dB', y: height * 0.3 },
+        { db: '-18 dB', y: height * 0.5 },
+        { db: '-36 dB', y: height * 0.7 },
+        { db: '-60 dB', y: height * 0.88 },
+      ];
+
+      ctx.save();
+      ctx.font = '9px JetBrains Mono, monospace';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+      ctx.lineWidth = 1;
+
+      gridLevels.forEach((grid) => {
+        ctx.beginPath();
+        ctx.moveTo(35, grid.y);
+        ctx.lineTo(width - 45, grid.y);
+        ctx.stroke();
+        ctx.fillText(grid.db, width - 40, grid.y + 3);
+      });
+
+      // Zero-Crossing Center Reference Axis
+      ctx.beginPath();
+      ctx.strokeStyle = isRecording ? 'rgba(16, 185, 129, 0.18)' : 'rgba(255, 255, 255, 0.06)';
+      ctx.moveTo(35, height / 2);
+      ctx.lineTo(width - 45, height / 2);
+      ctx.stroke();
+      ctx.restore();
+
+      animationPhase += isRecording ? 0.08 : 0.03;
+
+      const barSpacing = 3;
+      const totalBarWidth = (width - 75 - (numBars + 1) * barSpacing) / numBars;
+      const startX = 35;
+
+      // 3. Dynamic Equalizer Bars with Obsidian Emerald/Cyan Palette
       for (let i = 0; i < numBars; i++) {
         let barHeight = 8;
 
@@ -460,47 +517,115 @@ const LiveInterview = () => {
             const timeDev = Math.abs(timeData[i] - 128) / 128;
             const energy = Math.max(freqVal * gainBoost, timeDev * gainBoost * 1.5);
             const centerWeight = Math.sin((i / (numBars - 1)) * Math.PI);
-            barHeight = Math.max(8, energy * (height - 16) * (0.35 + 0.65 * centerWeight));
+            barHeight = Math.max(8, energy * (height - 24) * (0.35 + 0.65 * centerWeight));
           } else {
-            // Real mic connected: user is silent. Show small ambient resting floor
+            // Real mic connected: resting noise floor with subtle living pulse
             const timeDev = Math.abs(timeData[i] - 128) / 128;
-            barHeight = Math.max(6, Math.min(18, timeDev * 50 * gainBoost + 6));
+            const ambientPulse = Math.sin(animationPhase + i * 0.25) * 3 + 6;
+            barHeight = Math.max(6, Math.min(22, timeDev * 50 * gainBoost + ambientPulse));
             calculatedDb = 32;
           }
         } else {
-          barHeight = Math.max(6, Math.sin(animationPhase + i * 0.3) * 3 + 6);
+          // Mic ready: pleasant subtle harmonic resting wave
+          barHeight = Math.max(6, Math.sin(animationPhase + i * 0.28) * 4 + 7);
           calculatedDb = 32;
         }
 
-        const x = barSpacing + i * (totalBarWidth + barSpacing);
+        // Peak Hold Gravity Logic (Studio VU Meter Peak Hold)
+        if (barHeight > peakHold[i]) {
+          peakHold[i] = barHeight;
+        } else {
+          peakHold[i] = Math.max(6, peakHold[i] - 0.7);
+        }
+
+        const x = startX + barSpacing + i * (totalBarWidth + barSpacing);
         const y = (height - barHeight) / 2;
 
+        // Gradient Colors for Obsidian Integrity UI
         const gradient = ctx.createLinearGradient(0, y, 0, y + barHeight);
         if (calculatedDb > NOISE_THRESHOLD_DB && isRecording) {
-          gradient.addColorStop(0, '#f87171');
-          gradient.addColorStop(0.5, '#ef4444');
-          gradient.addColorStop(1, '#dc2626');
+          gradient.addColorStop(0, '#fca5a5'); // light coral highlight
+          gradient.addColorStop(0.3, '#ef4444'); // vibrant rose
+          gradient.addColorStop(0.8, '#dc2626');
+          gradient.addColorStop(1, '#7f1d1d'); // deep crimson base
         } else if (isRecording) {
-          gradient.addColorStop(0, '#d4a843');
-          gradient.addColorStop(0.3, '#c3d69b');
-          gradient.addColorStop(0.7, '#a8b88c');
-          gradient.addColorStop(1, '#78885c');
+          gradient.addColorStop(0, '#38bdf8'); // electric cyan top highlight
+          gradient.addColorStop(0.25, '#4edea3'); // mint glow
+          gradient.addColorStop(0.7, '#10b981'); // matrix emerald
+          gradient.addColorStop(1, '#064e3b'); // deep forest teal base
         } else {
-          gradient.addColorStop(0, '#4b5563');
-          gradient.addColorStop(1, '#374151');
+          // Standby Harmonic Wave
+          gradient.addColorStop(0, 'rgba(52, 211, 153, 0.45)');
+          gradient.addColorStop(1, 'rgba(30, 41, 59, 0.85)');
+        }
+
+        ctx.save();
+        if (isRecording) {
+          ctx.shadowColor = calculatedDb > NOISE_THRESHOLD_DB ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.35)';
+          ctx.shadowBlur = 6;
         }
 
         ctx.fillStyle = gradient;
         ctx.beginPath();
         if (ctx.roundRect) {
-          ctx.roundRect(x, y, totalBarWidth, barHeight, 3);
+          ctx.roundRect(x, y, totalBarWidth, barHeight, 2.5);
         } else {
           ctx.rect(x, y, totalBarWidth, barHeight);
         }
         ctx.fill();
+        ctx.restore();
+
+        // 4. Floating VU Peak Cap Indicator
+        if (peakHold[i] > 8) {
+          const peakY = (height - peakHold[i]) / 2 - 2;
+          ctx.save();
+          ctx.fillStyle = isRecording
+            ? (calculatedDb > NOISE_THRESHOLD_DB ? '#fca5a5' : '#38bdf8')
+            : 'rgba(78, 222, 163, 0.4)';
+          ctx.shadowColor = isRecording
+            ? (calculatedDb > NOISE_THRESHOLD_DB ? '#ef4444' : '#38bdf8')
+            : 'transparent';
+          ctx.shadowBlur = isRecording ? 4 : 0;
+          ctx.fillRect(x, Math.max(4, peakY), totalBarWidth, 1.5);
+          ctx.restore();
+        }
       }
 
-      // Update noise state once per frame (not 54 times per frame)
+      // 5. Glowing Oscilloscope Waveform Line Overlay Across the Center
+      ctx.save();
+      ctx.beginPath();
+      ctx.lineWidth = isRecording ? 1.75 : 1;
+      ctx.strokeStyle = isRecording
+        ? (calculatedDb > NOISE_THRESHOLD_DB ? 'rgba(248, 113, 113, 0.9)' : 'rgba(78, 222, 163, 0.85)')
+        : 'rgba(52, 211, 153, 0.3)';
+      ctx.shadowColor = isRecording
+        ? (calculatedDb > NOISE_THRESHOLD_DB ? '#ef4444' : '#10b981')
+        : 'transparent';
+      ctx.shadowBlur = isRecording ? 8 : 0;
+
+      for (let i = 0; i < numBars; i++) {
+        const x = startX + barSpacing + i * (totalBarWidth + barSpacing) + totalBarWidth / 2;
+        let waveY = height / 2;
+
+        if (isRecording && hasRealInput) {
+          const deviation = (timeData[i] - 128) / 128;
+          waveY = height / 2 + deviation * (height * 0.35) * gainBoost;
+        } else if (isRecording) {
+          waveY = height / 2 + Math.sin(animationPhase * 1.5 + i * 0.35) * 4;
+        } else {
+          waveY = height / 2 + Math.sin(animationPhase + i * 0.2) * 2.5;
+        }
+
+        if (i === 0) {
+          ctx.moveTo(x, waveY);
+        } else {
+          ctx.lineTo(x, waveY);
+        }
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      // Update noise state once per frame
       calculatedDb = Math.max(30, Math.min(95, calculatedDb));
       setCurrentNoiseDb(calculatedDb);
       setNoiseWarning(calculatedDb > NOISE_THRESHOLD_DB);
@@ -515,7 +640,7 @@ const LiveInterview = () => {
     };
   }, [viewMode, isRecording, micGranted, gainBoost]);
 
-  // ── Playback Canvas Waveform Engine ────────────────────────────────────────
+  // ── Playback Canvas Waveform Engine (60 FPS) ──────────────────────────────
   useEffect(() => {
     const canvas = playbackCanvasRef.current;
     if (!canvas) return;
@@ -527,9 +652,20 @@ const LiveInterview = () => {
       const width = canvas.width;
       const height = canvas.height;
       const duration = recordedWavData?.duration || session?.duration_seconds || 1185;
-      const progress = playbackTime / duration;
+      const progress = Math.min(1, Math.max(0, playbackTime / duration));
 
       ctx.clearRect(0, 0, width, height);
+
+      // Deep Obsidian Canvas Background
+      ctx.fillStyle = '#0a0e16';
+      ctx.fillRect(0, 0, width, height);
+
+      // Center Reference Line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.beginPath();
+      ctx.moveTo(0, height / 2);
+      ctx.lineTo(width, height / 2);
+      ctx.stroke();
 
       const numBars = 64;
       const barSpacing = 2.5;
@@ -541,18 +677,31 @@ const LiveInterview = () => {
         const barProgress = i / numBars;
         const isPassed = barProgress <= progress;
 
-        const baseShape = Math.sin(i * 0.4) * 22 + Math.cos(i * 0.8) * 15 + 40;
+        const baseShape = Math.sin(i * 0.4) * 22 + Math.cos(i * 0.8) * 15 + 38;
         let animatedHeight = baseShape;
 
         if (isPlayingAudio) {
-          const livePulse = Math.sin(phase * 3 + i * 0.35) * 15 + Math.cos(phase * 2 + i * 0.6) * 10;
-          animatedHeight = Math.max(10, Math.min(height - 10, baseShape + livePulse));
+          const livePulse = Math.sin(phase * 3 + i * 0.35) * 12 + Math.cos(phase * 2 + i * 0.6) * 8;
+          animatedHeight = Math.max(8, Math.min(height - 8, baseShape + livePulse));
         }
 
         const x = barSpacing + i * (barWidth + barSpacing);
         const y = (height - animatedHeight) / 2;
 
-        ctx.fillStyle = isPassed ? (isPlayingAudio ? '#d4a843' : '#a8b88c') : '#4b5563';
+        if (isPassed) {
+          const passedGrad = ctx.createLinearGradient(0, y, 0, y + animatedHeight);
+          passedGrad.addColorStop(0, '#4edea3');
+          passedGrad.addColorStop(1, '#10b981');
+          ctx.fillStyle = passedGrad;
+          if (isPlayingAudio) {
+            ctx.shadowColor = 'rgba(16, 185, 129, 0.35)';
+            ctx.shadowBlur = 4;
+          }
+        } else {
+          ctx.fillStyle = '#1e293b';
+          ctx.shadowBlur = 0;
+        }
+
         ctx.beginPath();
         if (ctx.roundRect) {
           ctx.roundRect(x, y, barWidth, animatedHeight, 2);
@@ -560,7 +709,25 @@ const LiveInterview = () => {
           ctx.rect(x, y, barWidth, animatedHeight);
         }
         ctx.fill();
+        ctx.shadowBlur = 0;
       }
+
+      // Vertical Glowing Playhead Line
+      const playheadX = progress * width;
+      ctx.strokeStyle = '#4edea3';
+      ctx.shadowColor = '#10b981';
+      ctx.shadowBlur = 6;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(playheadX, 0);
+      ctx.lineTo(playheadX, height);
+      ctx.stroke();
+
+      // Playhead Top Marker Dot
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(playheadX, 4, 3, 0, Math.PI * 2);
+      ctx.fill();
 
       playbackAnimFrameRef.current = requestAnimationFrame(drawPlaybackFrame);
     };
@@ -1358,13 +1525,13 @@ const LiveInterview = () => {
                 setViewMode('live');
                 toast('Switched to Live Recording Mode', { icon: '🎙️' });
               }}
-              className="flex items-center gap-2 px-3.5 py-2 bg-[#2a2a2a] text-gray-300 rounded-lg text-xs font-semibold border border-gray-700 hover:border-gray-600 transition"
+              className="flex items-center gap-2 px-3.5 py-2 bg-[#181c24] hover:bg-white/[0.06] text-gray-300 rounded-xl text-xs font-semibold border border-white/[0.08] transition"
             >
-              <Mic className="w-3.5 h-3.5 text-[#a8b88c]" /> Switch to Live Recording Mode
+              <Mic className="w-3.5 h-3.5 text-[#10b981]" /> Switch to Live Recording Mode
             </button>
             <Link
               to={`/reports/${session.candidate_id}`}
-              className="flex items-center gap-2 px-4 py-2 bg-[#a8b88c] text-gray-900 rounded-lg text-xs font-bold hover:bg-[#98a87c] transition shadow"
+              className="flex items-center gap-2 px-4 py-2 bg-[#10b981] hover:bg-[#059669] text-[#0a0e16] rounded-xl text-xs font-bold transition shadow-glow-emerald"
             >
               <BarChart2 className="w-4 h-4" /> View Performance Report
             </Link>
@@ -1372,57 +1539,57 @@ const LiveInterview = () => {
         </div>
 
         {/* Header Info Banner */}
-        <div className="bg-[#252525] rounded-xl p-6 border border-gray-800/80 flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div className="glass-panel rounded-2xl p-6 border border-white/[0.08] flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-[#3a3a3a] border-2 border-[#a8b88c] flex items-center justify-center text-white font-bold text-base">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#10b981]/20 to-[#0a0e16] border border-[#10b981]/40 flex items-center justify-center text-[#4edea3] font-bold text-base font-display shadow-md">
               {session.candidate_name.split(' ').map((n) => n[0]).join('')}
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h1 className="text-xl font-bold text-white">{session.candidate_name}</h1>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#a8b88c]/20 text-[#a8b88c] border border-[#a8b88c]/30 flex items-center gap-1">
+                <h1 className="text-xl font-bold text-white font-display">{session.candidate_name}</h1>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/30 flex items-center gap-1 font-mono">
                   <Check className="w-3 h-3" /> Completed
                 </span>
               </div>
-              <p className="text-gray-400 text-xs mt-0.5">{session.position} · {session.round}</p>
-              <p className="text-gray-500 text-xs mt-1">
+              <p className="text-gray-400 text-xs mt-0.5 font-mono">{session.position} · {session.round}</p>
+              <p className="text-gray-500 text-xs mt-1 font-mono">
                 Evaluator: <span className="text-gray-300 font-medium">{session.evaluator_name}</span> · Session ID: <span className="text-gray-400 font-mono">{session.id}</span>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-6 bg-[#1e1e1e] px-5 py-3 rounded-xl border border-gray-800">
+          <div className="flex items-center gap-6 bg-[#0a0e16]/80 px-5 py-3 rounded-xl border border-white/[0.06] font-mono">
             <div className="text-center">
-              <p className="text-gray-500 text-[11px] font-medium">Session Score</p>
-              <p className="text-[#a8b88c] text-2xl font-extrabold">{currentScores.overall}%</p>
+              <p className="text-gray-500 text-[11px] font-medium uppercase">Session Score</p>
+              <p className="text-[#10b981] text-2xl font-extrabold">{currentScores.overall}%</p>
             </div>
-            <div className="w-px h-8 bg-gray-800" />
+            <div className="w-px h-8 bg-white/10" />
             <div className="text-center">
-              <p className="text-gray-500 text-[11px] font-medium">Duration</p>
+              <p className="text-gray-500 text-[11px] font-medium uppercase">Duration</p>
               <p className="text-white text-base font-bold">{formatTime(session.duration_seconds)}</p>
             </div>
-            <div className="w-px h-8 bg-gray-800" />
+            <div className="w-px h-8 bg-white/10" />
             <div className="text-center">
-              <p className="text-gray-500 text-[11px] font-medium">Avg Noise</p>
-              <p className="text-[#d4a843] text-base font-bold">{session.noise_level_db} dB</p>
+              <p className="text-gray-500 text-[11px] font-medium uppercase">Avg Noise</p>
+              <p className="text-[#f59e0b] text-base font-bold">{session.noise_level_db} dB</p>
             </div>
           </div>
         </div>
 
         {/* Audio Playback Player with Interactive 60fps Canvas Visualizer */}
-        <div className="bg-[#252525] rounded-xl p-5 border border-gray-800 mb-6">
+        <div className="glass-panel rounded-2xl p-5 border border-white/[0.08] mb-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Volume2 className="w-4 h-4 text-[#a8b88c]" />
-              <h3 className="text-white text-xs font-bold uppercase tracking-wider">Session Audio Recording Playback</h3>
+              <Volume2 className="w-4 h-4 text-[#10b981]" />
+              <h3 className="text-white text-xs font-bold uppercase tracking-wider font-mono">Session Audio Recording Playback</h3>
             </div>
             <span className="text-gray-400 text-xs font-mono font-bold">
               {formatTime(playbackTime)} / {formatTime(session.duration_seconds)}
             </span>
           </div>
 
-          <div className="flex flex-col gap-4 bg-[#1e1e1e] p-4 rounded-xl border border-gray-800">
-            <div className="w-full h-16 bg-[#181818] rounded-lg overflow-hidden border border-gray-800">
+          <div className="flex flex-col gap-4 bg-[#0a0e16] p-4 rounded-xl border border-white/[0.06]">
+            <div className="w-full h-16 bg-[#0a0e16] rounded-lg overflow-hidden border border-white/[0.06]">
               <canvas
                 ref={playbackCanvasRef}
                 width={700}
@@ -1434,7 +1601,7 @@ const LiveInterview = () => {
             <div className="flex items-center gap-4">
               <button
                 onClick={handleTogglePlayback}
-                className="w-10 h-10 rounded-full bg-[#a8b88c] hover:bg-[#98a87c] text-gray-900 flex items-center justify-center font-bold transition flex-shrink-0 shadow"
+                className="w-10 h-10 rounded-full bg-[#10b981] hover:bg-[#059669] text-[#0a0e16] flex items-center justify-center font-bold transition flex-shrink-0 shadow-glow-emerald"
                 title={isPlayingAudio ? 'Pause Playback' : 'Start Playback'}
               >
                 {isPlayingAudio ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
@@ -1447,11 +1614,11 @@ const LiveInterview = () => {
                   max={session.duration_seconds}
                   value={playbackTime}
                   onChange={(e) => handleSeek(Number(e.target.value))}
-                  className="w-full accent-[#a8b88c] cursor-pointer h-2 bg-gray-800 rounded-lg"
+                  className="w-full accent-[#10b981] cursor-pointer h-2 bg-gray-800 rounded-lg"
                 />
                 <div className="flex justify-between text-[10px] text-gray-500 font-mono">
                   <span>00:00</span>
-                  <span>{formatTime(playbackTime)}</span>
+                  <span className="text-[#4edea3] font-bold">{formatTime(playbackTime)}</span>
                   <span>{formatTime(session.duration_seconds)}</span>
                 </div>
               </div>
@@ -1461,10 +1628,10 @@ const LiveInterview = () => {
 
         {/* Question-by-Question Transcript & Analysis */}
         <div className="grid grid-cols-12 gap-6 mb-6">
-          <div className="col-span-12 lg:col-span-5 bg-[#252525] rounded-xl p-5 border border-gray-800 space-y-4">
+          <div className="col-span-12 lg:col-span-5 glass-panel rounded-2xl p-5 border border-white/[0.08] space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-white text-sm font-bold">Session Questions</h3>
-              <span className="text-gray-500 text-xs">{sessionQuestions.length} Questions</span>
+              <h3 className="text-white text-sm font-bold font-display">Session Questions</h3>
+              <span className="text-gray-500 text-xs font-mono">{sessionQuestions.length} Questions</span>
             </div>
 
             <div className="space-y-3">
@@ -1474,15 +1641,15 @@ const LiveInterview = () => {
                   onClick={() => setActiveQuestionIdx(idx)}
                   className={`p-4 rounded-xl border text-xs cursor-pointer transition ${
                     activeQuestionIdx === idx
-                      ? 'bg-[#a8b88c]/10 border-[#a8b88c] text-white font-medium'
-                      : 'bg-[#1e1e1e] border-gray-800 text-gray-400 hover:border-gray-700'
+                      ? 'bg-[#10b981]/15 border-[#10b981]/40 text-white font-medium shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+                      : 'bg-[#0a0e16]/80 border-white/[0.06] text-gray-400 hover:border-white/[0.15]'
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[#a8b88c] font-bold text-[11px] uppercase">
+                  <div className="flex items-center justify-between mb-1.5 font-mono">
+                    <span className="text-[#4edea3] font-bold text-[11px] uppercase">
                       Q{idx + 1} · {q.category}
                     </span>
-                    <span className="px-2 py-0.5 bg-green-500/10 text-green-400 rounded text-[10px] font-semibold border border-green-500/20 flex items-center gap-1">
+                    <span className="px-2 py-0.5 bg-[#10b981]/15 text-[#4edea3] rounded text-[10px] font-semibold border border-[#10b981]/30 flex items-center gap-1">
                       <Check className="w-3 h-3" /> Answered
                     </span>
                   </div>
@@ -1494,66 +1661,66 @@ const LiveInterview = () => {
             </div>
           </div>
 
-          <div className="col-span-12 lg:col-span-7 bg-[#252525] rounded-xl p-6 border border-gray-800 flex flex-col justify-between">
+          <div className="col-span-12 lg:col-span-7 glass-panel rounded-2xl p-6 border border-white/[0.08] flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
+              <div className="flex items-center justify-between pb-3 border-b border-white/[0.08] mb-4">
                 <div>
-                  <span className="text-[#a8b88c] text-xs font-bold uppercase tracking-wider">
+                  <span className="text-[#10b981] text-xs font-bold uppercase tracking-wider font-mono">
                     Question {activeQuestionIdx + 1} of {sessionQuestions.length}
                   </span>
-                  <h4 className="text-white text-sm font-bold mt-1">
+                  <h4 className="text-white text-sm font-bold mt-1 font-display">
                     {sessionQuestions[activeQuestionIdx]?.question_text}
                   </h4>
                 </div>
-                <span className="px-2.5 py-1 bg-[#d4a843]/10 border border-[#d4a843]/30 text-[#d4a843] text-xs rounded-lg font-semibold whitespace-nowrap">
+                <span className="px-2.5 py-1 bg-[#f59e0b]/15 border border-[#f59e0b]/30 text-[#ffb95f] text-xs rounded-lg font-semibold whitespace-nowrap font-mono">
                   {sessionQuestions[activeQuestionIdx]?.difficulty} Difficulty
                 </span>
               </div>
 
               <div className="mb-5">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-2 font-mono">
                   <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-[#d4a843]" /> ASR Transcript (OpenAI Whisper)
+                    <FileText className="w-3.5 h-3.5 text-[#f59e0b]" /> ASR Transcript (OpenAI Whisper)
                   </span>
                   <span className="text-gray-500 text-[11px]">WER: 5.06% · Accuracy: 94.94%</span>
                 </div>
-                <div className="bg-[#1e1e1e] p-4 rounded-xl border border-gray-800 text-xs text-gray-300 leading-relaxed font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
+                <div className="bg-[#0a0e16] p-4 rounded-xl border border-white/[0.06] text-xs text-gray-300 leading-relaxed font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
                   {sessionTranscriptText.split('\n\n')[activeQuestionIdx] || sessionTranscriptText}
                 </div>
               </div>
 
-              <div className="bg-[#1e1e1e] p-3.5 rounded-xl border border-gray-800">
-                <div className="flex items-center justify-between mb-2.5">
+              <div className="bg-[#0a0e16] p-3.5 rounded-xl border border-white/[0.06]">
+                <div className="flex items-center justify-between mb-2.5 font-mono">
                   <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">Behavioral Evaluation</span>
                   {behavioralLoading ? (
-                    <span className="text-[#d4a843] text-[10px] font-semibold flex items-center gap-1">
-                      <div className="w-2.5 h-2.5 border border-[#d4a843] border-t-transparent rounded-full animate-spin" />
+                    <span className="text-[#f59e0b] text-[10px] font-semibold flex items-center gap-1">
+                      <div className="w-2.5 h-2.5 border border-[#f59e0b] border-t-transparent rounded-full animate-spin" />
                       Evaluating...
                     </span>
                   ) : behavioralScores ? (
-                    <span className="text-[#a8b88c] text-[10px] font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> AI Model
+                    <span className="text-[#4edea3] text-[10px] font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-[#10b981]" /> AI Model
                     </span>
                   ) : (
                     <span className="text-gray-600 text-[10px] font-semibold">Pending</span>
                   )}
                 </div>
-                <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="grid grid-cols-3 gap-3 text-center font-mono">
                   <div>
                     <p className="text-gray-500 text-[11px]">Confidence</p>
-                    <p className={`font-bold text-base mt-0.5 ${behavioralScores ? 'text-[#a8b88c]' : 'text-gray-400'}`}>{currentScores.confidence}%</p>
+                    <p className={`font-bold text-base mt-0.5 ${behavioralScores ? 'text-[#10b981]' : 'text-gray-400'}`}>{currentScores.confidence}%</p>
                   </div>
                   <div>
                     <p className="text-gray-500 text-[11px]">Attitude</p>
-                    <p className={`font-bold text-base mt-0.5 ${behavioralScores ? 'text-[#a8b88c]' : 'text-gray-400'}`}>{currentScores.attitude}%</p>
+                    <p className={`font-bold text-base mt-0.5 ${behavioralScores ? 'text-[#10b981]' : 'text-gray-400'}`}>{currentScores.attitude}%</p>
                   </div>
                   <div>
                     <p className="text-gray-500 text-[11px]">Transparency</p>
-                    <p className={`font-bold text-base mt-0.5 ${behavioralScores ? 'text-[#a8b88c]' : 'text-gray-400'}`}>{currentScores.transparency}%</p>
+                    <p className={`font-bold text-base mt-0.5 ${behavioralScores ? 'text-[#10b981]' : 'text-gray-400'}`}>{currentScores.transparency}%</p>
                   </div>
                 </div>
                 {behavioralScores && currentScores.audioSeconds > 0 && (
-                  <div className="flex items-center gap-3 mt-2.5 pt-2.5 border-t border-gray-800 text-[10px] text-gray-500 font-mono">
+                  <div className="flex items-center gap-3 mt-2.5 pt-2.5 border-t border-white/[0.06] text-[10px] text-gray-500 font-mono">
                     <span>🎙 {currentScores.audioSeconds.toFixed(1)}s audio</span>
                     <span>·</span>
                     <span>⚙ {currentScores.processingSeconds.toFixed(1)}s processing</span>
@@ -1562,11 +1729,11 @@ const LiveInterview = () => {
               </div>
             </div>
 
-            <div className="pt-5 border-t border-gray-800 flex justify-between items-center mt-5">
-              <span className="text-gray-500 text-xs">Session recorded and validated successfully</span>
+            <div className="pt-5 border-t border-white/[0.08] flex justify-between items-center mt-5">
+              <span className="text-gray-500 text-xs font-mono">Session recorded and validated successfully</span>
               <Link
                 to={`/reports/${session.candidate_id}`}
-                className="px-5 py-2 bg-[#d4a843] hover:bg-[#c39732] text-gray-900 text-xs font-bold rounded-lg transition"
+                className="px-5 py-2 bg-[#10b981] hover:bg-[#059669] text-[#0a0e16] text-xs font-bold rounded-xl transition shadow-glow-emerald"
               >
                 View Radar Report
               </Link>
@@ -1729,7 +1896,11 @@ const LiveInterview = () => {
         {/* Left Column: Acoustic HUD + Waveform Visualizer + Audio Upload */}
         <div className="col-span-12 lg:col-span-8 space-y-5">
           {/* [FR-06 & FR-07: Master Acoustic Signal & 60 FPS Waveform Monitor] */}
-          <div className="glass-panel rounded-2xl border border-white/[0.08] overflow-hidden shadow-2xl">
+          <div className={`glass-panel rounded-2xl border transition-all duration-300 overflow-hidden shadow-2xl ${
+            isRecording
+              ? (noiseWarning ? 'border-red-500/60 shadow-[0_0_35px_rgba(239,68,68,0.25)] ring-1 ring-red-500/40' : 'border-[#10b981]/50 shadow-[0_0_35px_rgba(16,185,129,0.18)] ring-1 ring-[#10b981]/30')
+              : 'border-white/[0.08]'
+          }`}>
             <div className="flex items-center justify-between px-5 py-3 bg-[#0f131c] border-b border-white/[0.07]">
               <div className="flex items-center gap-2.5 text-xs font-mono">
                 <span className="flex items-center gap-1.5 text-gray-200 font-semibold">
@@ -1752,21 +1923,51 @@ const LiveInterview = () => {
             {/* Audio Waveform Canvas Stage (FR-07: Signal Feedback) */}
             <div className="relative h-64 sm:h-72 bg-[#0a0e16] p-4 flex flex-col justify-between overflow-hidden">
               {/* Corner HUD Reticle Brackets */}
-              <div className="absolute top-3 left-3 w-4 h-4 border-t-2 border-l-2 border-[#10b981]/60 pointer-events-none"></div>
-              <div className="absolute top-3 right-3 w-4 h-4 border-t-2 border-r-2 border-[#10b981]/60 pointer-events-none"></div>
-              <div className="absolute bottom-3 left-3 w-4 h-4 border-b-2 border-l-2 border-[#10b981]/60 pointer-events-none"></div>
-              <div className="absolute bottom-3 right-3 w-4 h-4 border-b-2 border-r-2 border-[#10b981]/60 pointer-events-none"></div>
+              <div className="absolute top-2.5 left-2.5 w-3.5 h-3.5 border-t-2 border-l-2 border-[#10b981]/50 pointer-events-none transition-colors"></div>
+              <div className="absolute top-2.5 right-2.5 w-3.5 h-3.5 border-t-2 border-r-2 border-[#10b981]/50 pointer-events-none transition-colors"></div>
+              <div className="absolute bottom-2.5 left-2.5 w-3.5 h-3.5 border-b-2 border-l-2 border-[#10b981]/50 pointer-events-none transition-colors"></div>
+              <div className="absolute bottom-2.5 right-2.5 w-3.5 h-3.5 border-b-2 border-r-2 border-[#10b981]/50 pointer-events-none transition-colors"></div>
 
               {/* Live Overlay Telemetry Badges */}
               <div className="flex items-center justify-between z-10 text-[10px] font-mono">
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0a0e16]/90 backdrop-blur-md text-[#ffb4ab] border border-red-500/30">
-                  <span className={`w-2 h-2 rounded-full ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-gray-600'}`}></span>
-                  <span>{isRecording ? `REC ${formatTime(elapsedSeconds)}` : 'MICROPHONE READY'}</span>
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`flex items-center gap-2 px-3 py-1 rounded-full backdrop-blur-md border transition-all duration-300 ${
+                    isRecording
+                      ? 'bg-red-950/60 text-red-400 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
+                      : 'bg-[#0a0e16]/90 text-emerald-400 border-emerald-500/30'
+                  }`}>
+                    {isRecording ? (
+                      <>
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                        </span>
+                        <span className="font-bold tracking-wider">LIVE ON AIR · {formatTime(elapsedSeconds)}</span>
+                        <span className="flex items-end gap-0.5 h-2.5 ml-0.5">
+                          <span className="w-0.5 h-full bg-red-400 rounded-full animate-pulse"></span>
+                          <span className="w-0.5 h-2/3 bg-red-400 rounded-full animate-pulse delay-75"></span>
+                          <span className="w-0.5 h-4/5 bg-red-400 rounded-full animate-pulse delay-150"></span>
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span className="font-semibold tracking-wide">MIC READY</span>
+                      </>
+                    )}
+                  </span>
 
-                <span className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#0a0e16]/90 backdrop-blur-md text-[#4edea3] border border-[#10b981]/30">
-                  <Mic className="w-3 h-3 text-[#10b981]" />
-                  <span>{micGranted ? 'Web Audio Stream Active' : 'Click "Start Recording" Below'}</span>
+                  {isRecording && (
+                    <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/30">
+                      <Radio className="w-3 h-3 text-[#10b981] animate-pulse" />
+                      <span>60 FPS ACOUSTIC STREAM</span>
+                    </span>
+                  )}
+                </div>
+
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#0a0e16]/90 backdrop-blur-md text-[#4edea3] border border-[#10b981]/30">
+                  <Mic className={`w-3 h-3 ${isRecording ? 'text-[#10b981] animate-bounce' : 'text-gray-400'}`} />
+                  <span>{micGranted ? (isRecording ? 'Active Linear PCM Feed' : 'Microphone Granted') : 'Awaiting Mic'}</span>
                 </span>
               </div>
 
