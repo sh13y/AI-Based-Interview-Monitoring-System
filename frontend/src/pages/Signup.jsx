@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
+import { Shield, User, Mail, Lock, CheckCircle2, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { PasswordInput, EmailInput, TextInput, FormError, FileUploadInput } from '../components/ui/FormComponents';
+import { PasswordInput, EmailInput, FormError, FileUploadInput } from '../components/ui/FormComponents';
 
 const Signup = () => {
   const { control, handleSubmit, formState: { errors }, watch } = useForm({
@@ -28,18 +29,18 @@ const Signup = () => {
 
   // Password strength indicator
   const getPasswordStrength = (pwd) => {
-    if (!pwd) return { strength: 0, text: '', color: 'bg-gray-600' };
+    if (!pwd) return { strength: 0, text: '', color: 'bg-white/10' };
     let strength = 0;
     if (pwd.length >= 8) strength++;
     if (/[A-Z]/.test(pwd)) strength++;
     if (/\d/.test(pwd)) strength++;
     if (/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(pwd)) strength++;
     const levels = [
-      { strength: 0, text: '', color: 'bg-gray-600' },
-      { strength: 1, text: 'Weak', color: 'bg-red-500' },
-      { strength: 2, text: 'Fair', color: 'bg-yellow-500' },
+      { strength: 0, text: '', color: 'bg-white/10' },
+      { strength: 1, text: 'Weak', color: 'bg-rose-500' },
+      { strength: 2, text: 'Fair', color: 'bg-amber-500' },
       { strength: 3, text: 'Good', color: 'bg-blue-500' },
-      { strength: 4, text: 'Strong', color: 'bg-sage' }
+      { strength: 4, text: 'Strong', color: 'bg-emerald-500' }
     ];
     return levels[strength] || levels[0];
   };
@@ -79,44 +80,56 @@ const Signup = () => {
   };
 
   return (
-    <div className="w-full min-h-screen flex flex-col" style={{
-      backgroundImage: 'url(/Loginbackground.png)',
-      backgroundSize: 'cover',
-      backgroundPosition: 'center top',
-      backgroundRepeat: 'repeat-y',
-      backgroundColor: '#e8e8e0'
-    }}>
-      {/* Header - Full width dark navy */}
-      <div className="w-full bg-gray-900">
-        <div className="flex items-center px-8 py-4">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Modern Matrix" className="w-30 h-9" />
+    <div className="w-full min-h-screen bg-[#0A0E16] flex flex-col justify-between relative overflow-hidden font-sans selection:bg-emerald-500 selection:text-black">
+      {/* Ambient background glows */}
+      <div className="absolute -top-40 -right-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 -left-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Header */}
+      <header className="w-full px-8 py-5 flex items-center justify-between border-b border-white/5 relative z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-surface-card border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-md">
+            <Shield className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-base font-bold text-white tracking-tight font-display">Modern Matrix AI</h1>
+            <p className="text-[10px] font-mono text-gray-400">Intelligent Interview Proctoring System</p>
           </div>
         </div>
-      </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-beacon" />
+          <span className="text-xs font-mono text-gray-400">Aegis v4.2 Onboarding</span>
+        </div>
+      </header>
 
-      {/* Main Content - Centered */}
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="w-full" style={{ maxWidth: '900px' }}>
-          {/* Dark Card */}
-          <div className="bg-gray-900 rounded-3xl shadow-2xl p-8">
-            {/* Title */}
-            <h2 className="text-center text-sage text-3xl font-bold mb-8 tracking-wide">CREATE YOUR PROFILE</h2>
+      {/* Main Content */}
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-6 relative z-10">
+        <div className="w-full max-w-3xl">
+          <div className="glass-panel rounded-3xl border border-white/10 shadow-2xl p-8 sm:p-10 space-y-6">
+            <div className="text-center space-y-1.5">
+              <h2 className="text-2xl sm:text-3xl font-bold text-white font-display tracking-tight">
+                Operator Registration
+              </h2>
+              <p className="text-xs text-gray-400 font-mono">
+                Provision high-trust evaluator credentials with cryptographical verification
+              </p>
+            </div>
 
             {error && <FormError message={error} />}
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {/* Two Column Layout */}
               <div className="grid md:grid-cols-2 gap-6">
-
                 {/* Left Column - Personal Information */}
                 <div className="space-y-4">
-                  <h3 className="text-white text-sm font-semibold mb-4 text-left">Personal Information</h3>
+                  <h3 className="text-white text-xs font-mono uppercase tracking-wider font-semibold border-b border-white/10 pb-2">
+                    Personnel Dossier
+                  </h3>
 
-                  {/* First Name and Last Name */}
+                  {/* First Name & Last Name */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <label className="text-gray-400 text-xs font-medium block text-left">First Name</label>
+                    <div className="space-y-1.5">
+                      <label className="text-gray-400 text-xs font-mono block">First Name</label>
                       <Controller
                         name="firstName"
                         control={control}
@@ -125,15 +138,15 @@ const Signup = () => {
                           <input
                             {...field}
                             type="text"
-                            placeholder="Enter First Name"
-                            className="w-full px-4 py-2 bg-gray-800 text-gray-300 border border-gray-700 rounded-lg focus:outline-none focus:border-sage focus:ring-1 focus:ring-sage transition placeholder-gray-600"
+                            placeholder="Alex"
+                            className="w-full px-3.5 py-2.5 bg-[#0A0E16] text-gray-200 border border-white/10 rounded-xl text-xs focus:outline-none focus:border-emerald-500/50 transition font-mono"
                           />
                         )}
                       />
-                      {errors.firstName && <p className="text-red-400 text-xs">{errors.firstName.message}</p>}
+                      {errors.firstName && <p className="text-rose-400 text-xs font-mono">{errors.firstName.message}</p>}
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-gray-400 text-xs font-medium block text-left">Last Name</label>
+                    <div className="space-y-1.5">
+                      <label className="text-gray-400 text-xs font-mono block">Last Name</label>
                       <Controller
                         name="lastName"
                         control={control}
@@ -142,8 +155,8 @@ const Signup = () => {
                           <input
                             {...field}
                             type="text"
-                            placeholder="Enter Last Name"
-                            className="w-full px-4 py-2 bg-gray-800 text-gray-300 border border-gray-700 rounded-lg focus:outline-none focus:border-sage focus:ring-1 focus:ring-sage transition placeholder-gray-600"
+                            placeholder="Vance"
+                            className="w-full px-3.5 py-2.5 bg-[#0A0E16] text-gray-200 border border-white/10 rounded-xl text-xs focus:outline-none focus:border-emerald-500/50 transition font-mono"
                           />
                         )}
                       />
@@ -151,8 +164,8 @@ const Signup = () => {
                   </div>
 
                   {/* Account Role Selector */}
-                  <div className="space-y-2">
-                    <label className="text-gray-400 text-xs font-medium block text-left">Account Role</label>
+                  <div className="space-y-1.5">
+                    <label className="text-gray-400 text-xs font-mono block">Evaluation Role</label>
                     <Controller
                       name="role"
                       control={control}
@@ -160,36 +173,34 @@ const Signup = () => {
                       render={({ field }) => (
                         <select
                           {...field}
-                          className="w-full px-4 py-2 bg-gray-800 text-gray-300 border border-gray-700 rounded-lg focus:outline-none focus:border-sage focus:ring-1 focus:ring-sage transition cursor-pointer text-xs"
+                          className="w-full px-3.5 py-2.5 bg-[#0A0E16] text-gray-200 border border-white/10 rounded-xl text-xs focus:outline-none focus:border-emerald-500/50 transition font-mono cursor-pointer"
                         >
-                          <option value="HR_Manager">HR Manager / Recruiter</option>
-                          <option value="Admin">System Administrator (Admin)</option>
+                          <option value="HR_Manager">HR Manager / Technical Evaluator</option>
+                          <option value="Admin">System Administrator (Chief Proctor)</option>
                         </select>
                       )}
                     />
                   </div>
 
                   {/* Profile Picture */}
-                  <div className="space-y-2">
-                    <label className="text-white text-xs font-semibold block text-left">Profile Picture</label>
-                    <div className="border-2 border-dashed border-gray-700 rounded-lg p-4 text-center hover:border-sage transition bg-gray-800/50">
+                  <div className="space-y-1.5">
+                    <label className="text-gray-400 text-xs font-mono block">Operator Avatar</label>
+                    <div className="border border-dashed border-white/15 rounded-xl p-4 text-center hover:border-emerald-500/40 transition bg-[#0A0E16]/60">
                       {profilePicture ? (
                         <div>
-                          <img src={profilePicture} alt="Profile Preview" className="w-16 h-16 rounded-lg object-cover mx-auto mb-2" />
-                          <p className="text-sage text-xs font-semibold">✓ Image uploaded</p>
-                          <label htmlFor="profilePicture" className="text-gray-500 text-xs cursor-pointer hover:text-sage mt-1 block">
-                            Click to change
+                          <img src={profilePicture} alt="Avatar Preview" className="w-14 h-14 rounded-xl object-cover mx-auto mb-2 border border-emerald-500/30" />
+                          <p className="text-emerald-400 text-xs font-mono">✓ Image uploaded</p>
+                          <label htmlFor="profilePicture" className="text-gray-500 text-xs cursor-pointer hover:text-emerald-400 mt-1 block">
+                            Replace
                           </label>
                         </div>
                       ) : (
-                        <>
-                          <svg className="w-8 h-8 text-gray-600 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                          <p className="text-gray-500 text-xs">
-                            Drag & drop your photo or <label htmlFor="profilePicture" className="text-sage cursor-pointer font-semibold">browse</label>
+                        <div>
+                          <User className="w-8 h-8 text-gray-600 mx-auto mb-1" />
+                          <p className="text-gray-400 text-xs font-mono">
+                            Drag & drop avatar photo or <label htmlFor="profilePicture" className="text-emerald-400 cursor-pointer font-semibold">browse</label>
                           </p>
-                        </>
+                        </div>
                       )}
                       <FileUploadInput
                         name="profilePicture"
@@ -202,11 +213,13 @@ const Signup = () => {
 
                 {/* Right Column - Account Security */}
                 <div className="space-y-4">
-                  <h3 className="text-white text-sm font-semibold mb-4 text-left">Account Security</h3>
+                  <h3 className="text-white text-xs font-mono uppercase tracking-wider font-semibold border-b border-white/10 pb-2">
+                    Security Credentials
+                  </h3>
 
                   {/* Work Email */}
-                  <div className="space-y-2">
-                    <label className="text-gray-400 text-xs font-medium block text-left">Work Email</label>
+                  <div className="space-y-1.5">
+                    <label className="text-gray-400 text-xs font-mono block">Corporate Email</label>
                     <EmailInput
                       name="email"
                       control={control}
@@ -216,8 +229,8 @@ const Signup = () => {
                   </div>
 
                   {/* Password */}
-                  <div className="space-y-2">
-                    <label className="text-gray-400 text-xs font-medium block text-left">Password</label>
+                  <div className="space-y-1.5">
+                    <label className="text-gray-400 text-xs font-mono block">Master Password</label>
                     <PasswordInput
                       label=""
                       name="password"
@@ -226,16 +239,16 @@ const Signup = () => {
                       required
                     />
                     {password && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <div className={`h-1.5 flex-1 rounded ${passwordStrength.color}`}></div>
-                        <span className="text-xs text-gray-400">{passwordStrength.text}</span>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <div className={`h-1.5 flex-1 rounded-full ${passwordStrength.color}`} />
+                        <span className="text-[11px] font-mono text-gray-400">{passwordStrength.text}</span>
                       </div>
                     )}
                   </div>
 
                   {/* Confirm Password */}
-                  <div className="space-y-2">
-                    <label className="text-gray-400 text-xs font-medium block text-left">Confirm Password</label>
+                  <div className="space-y-1.5">
+                    <label className="text-gray-400 text-xs font-mono block">Confirm Password</label>
                     <PasswordInput
                       label=""
                       name="confirmPassword"
@@ -245,50 +258,59 @@ const Signup = () => {
                     />
                   </div>
 
-                  {/* Terms & Privacy */}
-                  <div className="space-y-2 pt-2">
-                    <div className="flex items-center gap-2">
+                  {/* Terms */}
+                  <div className="pt-2">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
                       <Controller
                         name="termsAccepted"
                         control={control}
-                        render={({ field }) => (
+                        render={({ field: { value, onChange } }) => (
                           <input
-                            {...field}
                             type="checkbox"
-                            className="w-4 h-4 bg-gray-800 border border-gray-700 rounded text-sage focus:ring-sage cursor-pointer flex-shrink-0"
+                            checked={value}
+                            onChange={(e) => onChange(e.target.checked)}
+                            className="mt-0.5 w-4 h-4 rounded bg-[#0A0E16] border border-white/20 text-emerald-500 focus:ring-0 cursor-pointer"
                           />
                         )}
                       />
-                      <label className="text-gray-400 text-xs">
-                        <span className="text-white font-semibold block text-xs">Terms & Privacy</span>
-                        <span className="text-xs">I agree to the Terms of Service and have read the 30 day data purge policy.</span>
-                      </label>
-                    </div>
-                    {errors.termsAccepted && <p className="text-red-400 text-xs">{errors.termsAccepted.message}</p>}
+                      <span className="text-xs text-gray-400 leading-relaxed">
+                        I accept the <span className="text-white font-semibold">Proctor Terms of Integrity</span> and biometric evaluation data retention policy.
+                      </span>
+                    </label>
+                    {errors.termsAccepted && (
+                      <p className="text-rose-400 text-xs font-mono mt-1">{errors.termsAccepted.message}</p>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Sign Up Button */}
+              {/* Submit */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2 mt-6 bg-sage hover:bg-sage/90 text-gray-900 font-semibold rounded-lg transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-surface font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2 font-display"
               >
-                {loading ? 'Creating Account...' : 'Sign Up'}
+                {loading ? 'Registering Operator...' : 'Create Proctor Account'}
+                <ArrowRight className="w-4 h-4" />
               </button>
             </form>
 
-            {/* Create Account Link */}
-            <p className="text-center text-gray-400 text-xs mt-4">
-              Already have an account?{' '}
-              <Link to="/login" className="text-sage hover:text-sage/80 font-semibold transition">
-                Log in now
-              </Link>
-            </p>
+            <div className="pt-4 border-t border-white/5 text-center">
+              <p className="text-gray-400 text-xs">
+                Already registered?{' '}
+                <Link to="/login" className="text-emerald-400 hover:text-emerald-300 font-semibold transition">
+                  Sign in to console
+                </Link>
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="w-full py-4 text-center text-xs font-mono text-gray-500 border-t border-white/5">
+        Modern Matrix AI Proctor Framework • Cryptographically Sealed Sessions
+      </footer>
     </div>
   );
 };

@@ -82,28 +82,36 @@ const DashboardLayout = ({ children }) => {
   };
 
   return (
-    <div className="flex h-screen bg-[#1a1a1a] overflow-hidden">
+    <div className="flex h-screen bg-[#0a0e16] text-[#dfe2ee] overflow-hidden">
       {/* Sidebar */}
       <Sidebar onLogout={logout} />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden bg-[#0a0e16]">
         {/* Header */}
-        <header className="h-16 bg-[#1e1e1e] border-b border-gray-800 flex items-center justify-between px-6 flex-shrink-0 z-30">
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500 font-medium">Modern Matrix Monitoring System</span>
+        <header className="h-16 bg-[#0f131c]/90 border-b border-white/[0.08] backdrop-blur-xl flex items-center justify-between px-6 flex-shrink-0 z-30">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#181c24] border border-white/[0.07] text-[11px] font-mono text-gray-400">
+              <span className="w-2 h-2 rounded-full bg-[#10b981] animate-beacon"></span>
+              <span>Aegis Vision AI</span>
+              <span className="text-gray-600">•</span>
+              <span className="text-[#4edea3]">Active Telemetry</span>
+            </div>
           </div>
 
           {/* Right side icons */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
                 type="text"
-                placeholder="Search Anything..."
-                className="pl-10 pr-4 py-2 bg-[#2a2a2a] border border-gray-700 rounded-full text-sm text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#a8b88c] focus:ring-1 focus:ring-[#a8b88c] w-64 transition"
+                placeholder="Search candidates, sessions, IDs..."
+                className="pl-9 pr-8 py-1.5 bg-[#181c24]/90 border border-white/[0.08] rounded-lg text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#10b981] focus:ring-1 focus:ring-[#10b981] w-64 transition"
               />
+              <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-white/[0.06] text-[10px] text-gray-500 font-mono border border-white/[0.08]">
+                ⌘K
+              </kbd>
             </div>
 
             {/* Notifications Menu */}
@@ -113,41 +121,39 @@ const DashboardLayout = ({ children }) => {
                   setShowNotifications(!showNotifications);
                   setShowProfileMenu(false);
                 }}
-                className="relative p-2 text-gray-400 hover:text-gray-200 transition rounded-full hover:bg-[#2a2a2a]"
+                className="relative p-2 text-gray-400 hover:text-white transition rounded-lg hover:bg-white/[0.06] border border-transparent hover:border-white/[0.08]"
                 title="Notifications"
               >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#d4a843] rounded-full text-[10px] flex items-center justify-center text-gray-900 font-bold">
-                    {unreadCount}
-                  </span>
+                  <span className="absolute 1 top-1.5 right-1.5 w-2 h-2 bg-[#f59e0b] rounded-full"></span>
                 )}
               </button>
 
               {/* Notifications Dropdown Drawer */}
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-[#1e1e1e] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden z-50">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-[#252525]">
+                <div className="absolute right-0 mt-2 w-80 bg-[#181c24] border border-white/[0.1] rounded-xl shadow-2xl overflow-hidden z-50 backdrop-blur-2xl">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08] bg-[#0f131c]">
                     <div className="flex items-center gap-2">
-                      <Bell className="w-4 h-4 text-[#d4a843]" />
-                      <span className="text-white text-xs font-bold">Notifications</span>
+                      <Bell className="w-4 h-4 text-[#f59e0b]" />
+                      <span className="text-white text-xs font-bold font-display">Telemetry Alerts</span>
                     </div>
                     {unreadCount > 0 && (
                       <button
                         onClick={() => setUnreadCount(0)}
-                        className="text-[11px] text-[#a8b88c] hover:underline font-semibold"
+                        className="text-[11px] text-[#10b981] hover:underline font-mono"
                       >
-                        Mark all as read
+                        Mark all read
                       </button>
                     )}
                   </div>
 
-                  <div className="divide-y divide-gray-800/60 max-h-72 overflow-y-auto">
+                  <div className="divide-y divide-white/[0.05] max-h-72 overflow-y-auto">
                     {sampleNotifications.map((n) => (
-                      <div key={n.id} className="p-3.5 hover:bg-[#252525] transition text-xs space-y-1">
+                      <div key={n.id} className="p-3.5 hover:bg-white/[0.03] transition text-xs space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-gray-200 font-semibold">{n.title}</span>
-                          <span className="text-gray-500 text-[10px] flex items-center gap-1">
+                          <span className="text-gray-200 font-medium">{n.title}</span>
+                          <span className="text-gray-500 text-[10px] flex items-center gap-1 font-mono">
                             <Clock className="w-3 h-3" /> {n.time}
                           </span>
                         </div>
@@ -157,13 +163,13 @@ const DashboardLayout = ({ children }) => {
                   </div>
 
                   {user?.role === 'Admin' && (
-                    <div className="p-2.5 border-t border-gray-800 text-center bg-[#252525]">
+                    <div className="p-2.5 border-t border-white/[0.08] text-center bg-[#0f131c]">
                       <Link
                         to="/system"
                         onClick={() => setShowNotifications(false)}
-                        className="text-[11px] text-[#a8b88c] hover:underline font-bold"
+                        className="text-[11px] text-[#10b981] hover:underline font-mono"
                       >
-                        View System Maintenance & Logs
+                        Open System Governance Logs →
                       </Link>
                     </div>
                   )}
@@ -178,10 +184,10 @@ const DashboardLayout = ({ children }) => {
                   setShowProfileMenu(!showProfileMenu);
                   setShowNotifications(false);
                 }}
-                className="flex items-center gap-2 p-1 rounded-full hover:bg-[#2a2a2a] transition focus:outline-none"
+                className="flex items-center gap-2 p-1 rounded-lg hover:bg-white/[0.06] transition border border-transparent hover:border-white/[0.08] focus:outline-none"
                 title="Profile Menu"
               >
-                <div className="w-9 h-9 rounded-full bg-[#3a3a3a] border-2 border-[#a8b88c] flex items-center justify-center overflow-hidden">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#181c24] to-[#262a33] border border-[#10b981]/50 flex items-center justify-center overflow-hidden">
                   {user?.avatar_url || user?.profile_picture_url ? (
                     <img
                       src={user.avatar_url || user.profile_picture_url}
@@ -189,35 +195,35 @@ const DashboardLayout = ({ children }) => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <User className="w-5 h-5 text-[#a8b88c]" />
+                    <User className="w-4 h-4 text-[#10b981]" />
                   )}
                 </div>
               </button>
 
               {/* Profile Dropdown Menu */}
               {showProfileMenu && (
-                <div className="absolute right-0 mt-2 w-72 bg-[#1e1e1e] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden z-50">
+                <div className="absolute right-0 mt-2 w-72 bg-[#181c24] border border-white/[0.1] rounded-xl shadow-2xl overflow-hidden z-50 backdrop-blur-2xl">
                   {/* User Profile Card Header */}
-                  <div className="p-4 border-b border-gray-800 bg-[#252525]">
+                  <div className="p-4 border-b border-white/[0.08] bg-[#0f131c]">
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-full bg-[#3a3a3a] border border-[#a8b88c] flex items-center justify-center text-white font-bold">
+                      <div className="w-9 h-9 rounded-lg bg-[#262a33] border border-[#10b981]/40 flex items-center justify-center text-white font-bold text-xs font-mono">
                         {displayName.split(' ').map((n) => n[0]).join('')}
                       </div>
                       <div className="overflow-hidden">
-                        <p className="text-white text-xs font-bold truncate">{displayName}</p>
-                        <p className="text-gray-400 text-[11px] truncate">{displayEmail}</p>
-                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-[#a8b88c]/20 text-[#a8b88c] text-[10px] font-bold rounded-full border border-[#a8b88c]/30">
+                        <p className="text-white text-xs font-bold truncate font-display">{displayName}</p>
+                        <p className="text-gray-400 text-[11px] truncate font-mono">{displayEmail}</p>
+                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-[#10b981]/15 text-[#4edea3] text-[10px] font-mono font-medium rounded border border-[#10b981]/30">
                           <Shield className="w-2.5 h-2.5" /> {displayRole}
                         </span>
                       </div>
                     </div>
 
                     {/* Quick Role Switcher for Demo / Testing (FR-02) */}
-                    <div className="mt-3 pt-2.5 border-t border-gray-700/60 flex items-center justify-between">
+                    <div className="mt-3 pt-2.5 border-t border-white/[0.07] flex items-center justify-between">
                       <span className="text-[11px] text-gray-400">Current Role:</span>
                       <button
                         onClick={handleToggleRole}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#1e1e1e] hover:bg-[#333] text-[#d4a843] border border-gray-700 rounded-md text-[10px] font-bold transition"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#181c24] hover:bg-white/[0.06] text-[#f59e0b] border border-white/[0.1] rounded text-[10px] font-mono font-semibold transition"
                         title="Click to toggle role for RBAC testing"
                       >
                         <RefreshCw className="w-2.5 h-2.5" /> Switch to {displayRole === 'Admin' ? 'HR Manager' : 'Admin'}
@@ -230,9 +236,9 @@ const DashboardLayout = ({ children }) => {
                     <Link
                       to="/settings"
                       onClick={() => setShowProfileMenu(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white hover:bg-[#252525] rounded-lg transition"
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/[0.05] rounded-lg transition"
                     >
-                      <Settings className="w-4 h-4 text-[#a8b88c]" /> Profile & Account Settings
+                      <Settings className="w-4 h-4 text-[#10b981]" /> Profile & Account Settings
                     </Link>
                     <button
                       onClick={handleLogout}
@@ -248,7 +254,7 @@ const DashboardLayout = ({ children }) => {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-6 scrollbar-thin">
+        <main className="flex-1 overflow-y-auto p-6 scrollbar-thin bg-[#0a0e16]">
           {children}
         </main>
       </div>
@@ -261,10 +267,10 @@ export const ProtectedRoute = ({ children }) => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#1a1a1a]">
+      <div className="flex items-center justify-center h-screen bg-[#0a0e16]">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-3 border-[#a8b88c] border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-gray-400 text-sm">Loading...</p>
+          <div className="w-8 h-8 border-2 border-[#10b981] border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-400 text-xs font-mono tracking-wider">INITIALIZING SESSION...</p>
         </div>
       </div>
     );
@@ -282,10 +288,10 @@ export const AdminRoute = ({ children }) => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#1a1a1a]">
+      <div className="flex items-center justify-center h-screen bg-[#0a0e16]">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-3 border-[#a8b88c] border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-gray-400 text-sm">Loading...</p>
+          <div className="w-8 h-8 border-2 border-[#10b981] border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-400 text-xs font-mono tracking-wider">VERIFYING PERMISSIONS...</p>
         </div>
       </div>
     );

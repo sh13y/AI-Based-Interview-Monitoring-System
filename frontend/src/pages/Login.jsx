@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Shield, Lock, Mail, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { FormError } from '../components/ui/FormComponents';
 
@@ -38,41 +38,51 @@ const Login = () => {
   };
 
   return (
-    <div className="w-full min-h-screen flex flex-col" style={{
-      backgroundImage: 'url(/Loginbackground.png)',
-      backgroundSize: 'cover',
-      backgroundPosition: 'center top',
-      backgroundRepeat: 'repeat-y',
-      backgroundColor: '#e8e8e0'
-    }}>
-      {/* Header - Full width dark navy */}
-      <div className="w-full bg-gray-900">
-        <div className="flex items-center px-8 py-4">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Modern Matrix" className="w-30 h-9" />
-            {/* <h1 className="text-sage font-semibold text-base tracking-wide">Modern Matrix</h1> */}
+    <div className="w-full min-h-screen bg-[#0A0E16] flex flex-col justify-between relative overflow-hidden font-sans selection:bg-emerald-500 selection:text-black">
+      {/* Ambient background glows */}
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Header */}
+      <header className="w-full px-8 py-5 flex items-center justify-between border-b border-white/5 relative z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-surface-card border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-md">
+            <Shield className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-base font-bold text-white tracking-tight font-display">Modern Matrix AI</h1>
+            <p className="text-[10px] font-mono text-gray-400">Intelligent Interview Proctoring System</p>
           </div>
         </div>
-      </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-beacon" />
+          <span className="text-xs font-mono text-gray-400">Aegis v4.2 Online</span>
+        </div>
+      </header>
 
-      {/* Main Content - Centered */}
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="w-full" style={{ maxWidth: '600px' }}>
-          {/* Dark Card */}
-          <div className="bg-gray-900 rounded-3xl shadow-2xl px-10 py-8">
-            {/* Title */}
-            <h2 className="text-center text-sage text-3xl font-bold mb-8 tracking-wide">Welcome Back!</h2>
+      {/* Main Content */}
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-6 relative z-10">
+        <div className="w-full max-w-md">
+          <div className="glass-panel rounded-3xl border border-white/10 shadow-2xl p-8 sm:p-10 space-y-6">
+            <div className="text-center space-y-1.5">
+              <h2 className="text-2xl sm:text-3xl font-bold text-white font-display tracking-tight">
+                Operator Sign In
+              </h2>
+              <p className="text-xs text-gray-400 font-mono">
+                Enter your credentials to access the proctor cockpit
+              </p>
+            </div>
 
             {error && <FormError message={error} />}
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-              {/* Account Security Section */}
-              <div>
-                <h3 className="text-white text-sm font-semibold mb-5 text-left">Account Security</h3>
-
-                {/* Email Address Field */}
-                <div className="space-y-2 mb-5">
-                  <label className="text-gray-400 text-xs font-medium block text-left">Email Address</label>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {/* Email Address */}
+              <div className="space-y-1.5">
+                <label className="text-gray-300 text-xs font-mono uppercase tracking-wider block">
+                  Work Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <Controller
                     name="userId"
                     control={control}
@@ -88,18 +98,31 @@ const Login = () => {
                         {...field}
                         type="email"
                         placeholder="admin@modernmatrix.com"
-                        className="w-full px-4 py-3 bg-gray-800 text-gray-300 border border-gray-700 rounded-lg focus:outline-none focus:border-sage focus:ring-1 focus:ring-sage transition placeholder-gray-600"
+                        className="w-full pl-10 pr-4 py-2.5 bg-[#0A0E16] text-gray-200 border border-white/10 rounded-xl text-xs focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition placeholder-gray-600 font-mono"
                       />
                     )}
                   />
-                  {errors.userId && (
-                    <p className="text-red-400 text-xs mt-1">{errors.userId.message}</p>
-                  )}
                 </div>
+                {errors.userId && (
+                  <p className="text-rose-400 text-xs font-mono mt-1">{errors.userId.message}</p>
+                )}
+              </div>
 
-                {/* Password Field */}
-                <div className="space-y-3">
-                  <label className="text-gray-400 text-sm font-medium block text-left">Password</label>
+              {/* Password */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-gray-300 text-xs font-mono uppercase tracking-wider block">
+                    Security Password
+                  </label>
+                  <Link
+                    to="/forgot-password"
+                    className="text-gray-400 hover:text-emerald-400 text-xs font-mono transition"
+                  >
+                    Forgot?
+                  </Link>
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <Controller
                     name="password"
                     control={control}
@@ -107,57 +130,60 @@ const Login = () => {
                       required: 'Password is required'
                     }}
                     render={({ field }) => (
-                      <div className="relative">
-                        <input
-                          {...field}
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder="Enter Password"
-                          className="w-full px-4 py-3 bg-gray-800 text-gray-300 border border-gray-700 rounded-lg focus:outline-none focus:border-sage focus:ring-1 focus:ring-sage transition placeholder-gray-600"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition focus:outline-none"
-                          title={showPassword ? "Hide Password" : "Show Password"}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="w-5 h-5" />
-                          ) : (
-                            <Eye className="w-5 h-5" />
-                          )}
-                        </button>
-                      </div>
+                      <input
+                        {...field}
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="••••••••••••"
+                        className="w-full pl-10 pr-10 py-2.5 bg-[#0A0E16] text-gray-200 border border-white/10 rounded-xl text-xs focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition placeholder-gray-600 font-mono"
+                      />
                     )}
                   />
-                  {errors.password && (
-                    <p className="text-red-400 text-xs mt-1">{errors.password.message}</p>
-                  )}
-                  <Link to="/forgot-password" className="text-gray-500 hover:text-sage text-xs font-medium transition inline-block mt-2">
-                    Forgot password ?
-                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
+                {errors.password && (
+                  <p className="text-rose-400 text-xs font-mono mt-1">{errors.password.message}</p>
+                )}
               </div>
 
-              {/* Sign In Button */}
+              {/* Submit */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 mt-10 bg-sage hover:bg-sage/90 text-gray-900 font-semibold rounded-lg transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 mt-6 bg-emerald-500 hover:bg-emerald-400 text-surface font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2 font-display"
               >
-                {loading ? 'Signing In...' : 'Sign In'}
+                {loading ? (
+                  <span>Authenticating...</span>
+                ) : (
+                  <>
+                    <span>Authenticate & Enter Console</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </form>
 
-            {/* Create Account Link */}
-            <p className="text-center text-gray-400 text-sm mt-8">
-              Don't have an account?{' '}
-              <Link to="/signup" className="text-sage hover:text-sage/80 font-semibold transition">
-                Create account
-              </Link>
-            </p>
+            <div className="pt-4 border-t border-white/5 text-center">
+              <p className="text-gray-400 text-xs">
+                Need an evaluator account?{' '}
+                <Link to="/signup" className="text-emerald-400 hover:text-emerald-300 font-semibold transition">
+                  Request access
+                </Link>
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="w-full py-4 text-center text-xs font-mono text-gray-500 border-t border-white/5">
+        Modern Matrix AI Proctor Framework • Cryptographically Sealed Sessions
+      </footer>
     </div>
   );
 };

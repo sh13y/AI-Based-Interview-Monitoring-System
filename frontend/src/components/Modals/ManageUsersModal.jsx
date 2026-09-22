@@ -52,7 +52,6 @@ const ManageUsersModal = ({ onClose }) => {
       }
     }
 
-    // Combine with localStorage registered demo users
     if (loaded.length === 0) {
       loaded = [...dummyUsers];
       for (let i = 0; i < localStorage.length; i++) {
@@ -86,7 +85,6 @@ const ManageUsersModal = ({ onClose }) => {
   const handleSelectUserHistory = async (targetUser) => {
     setSelectedUser(targetUser);
 
-    // 1. Load Interview Sessions
     const matchingSessions = dummyInterviewSessions.filter(
       (s) => s.user_id === targetUser.id || 
              s.evaluator_name?.toLowerCase().includes(targetUser.first_name?.toLowerCase()) ||
@@ -94,77 +92,40 @@ const ManageUsersModal = ({ onClose }) => {
     );
     setUserSessions(matchingSessions.length > 0 ? matchingSessions : dummyInterviewSessions.slice(0, 3));
 
-    // 2. Load Login & Auth History from Audit Logs
     const allLogs = await getAuditLogs();
     const userSpecificLogs = allLogs.filter(
       (l) => l.user_email?.toLowerCase() === targetUser.email.toLowerCase() ||
              l.details?.toLowerCase().includes(targetUser.email.toLowerCase())
     );
 
-    // If no custom live logs, generate realistic authentication history
-    if (userSpecificLogs.length === 0) {
-      const now = Date.now();
-      const mockLogins = [
-        {
-          id: 'log-01',
-          action: 'USER_LOGIN',
-          details: 'Successful authentication via email & password',
-          ip_address: '192.168.1.104',
-          device: 'Chrome on Windows 11 (Desktop)',
-          status: 'SUCCESS',
-          created_at: new Date(now - 1000 * 60 * 25).toISOString(), // 25 mins ago
-        },
-        {
-          id: 'log-02',
-          action: 'SESSION_START',
-          details: 'Started live candidate monitoring session',
-          ip_address: '192.168.1.104',
-          device: 'Chrome on Windows 11 (Desktop)',
-          status: 'SUCCESS',
-          created_at: new Date(now - 1000 * 60 * 180).toISOString(), // 3 hours ago
-        },
-        {
-          id: 'log-03',
-          action: 'USER_LOGOUT',
-          details: 'Session ended normally by user logout',
-          ip_address: '192.168.1.104',
-          device: 'Chrome on Windows 11 (Desktop)',
-          status: 'SUCCESS',
-          created_at: new Date(now - 1000 * 60 * 60 * 26).toISOString(), // Yesterday
-        },
-        {
-          id: 'log-04',
-          action: 'USER_LOGIN',
-          details: 'Successful authentication via email & password',
-          ip_address: '192.168.1.104',
-          device: 'Chrome on Windows 11 (Desktop)',
-          status: 'SUCCESS',
-          created_at: new Date(now - 1000 * 60 * 60 * 28).toISOString(),
-        },
-        {
-          id: 'log-05',
-          action: 'PASSWORD_VERIFIED',
-          details: 'Security credentials validated successfully',
-          ip_address: '192.168.1.104',
-          device: 'Chrome on Windows 11 (Desktop)',
-          status: 'SUCCESS',
-          created_at: new Date(now - 1000 * 60 * 60 * 72).toISOString(), // 3 days ago
-        }
-      ];
-      setUserLogins(mockLogins);
-    } else {
-      // Map audit logs to login entries
-      const mapped = userSpecificLogs.map(l => ({
-        id: l.id,
-        action: l.action,
-        details: l.details || 'User account authentication event',
+    const fallbackLogins = [
+      {
+        id: 'log-1',
+        action: 'PASSWORD_VERIFIED',
+        details: `Successful operator login for ${targetUser.email}`,
+        created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+        device: 'Chrome 122 (Windows 11)',
         ip_address: '192.168.1.104',
-        device: 'Modern Matrix Client (Web)',
-        status: 'SUCCESS',
-        created_at: l.created_at,
-      }));
-      setUserLogins(mapped);
-    }
+      },
+      {
+        id: 'log-2',
+        action: 'SESSION_INITIALIZED',
+        details: `Created session token with 8hr expiry for ${targetUser.email}`,
+        created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
+        device: 'Chrome 122 (Windows 11)',
+        ip_address: '192.168.1.104',
+      },
+      {
+        id: 'log-3',
+        action: 'USER_LOGOUT',
+        details: `Clean sign-out event recorded for ${targetUser.email}`,
+        created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
+        device: 'Chrome 122 (Windows 11)',
+        ip_address: '192.168.1.104',
+      },
+    ];
+
+    setUserLogins(userSpecificLogs.length > 0 ? userSpecificLogs : fallbackLogins);
   };
 
   const handleDeleteUser = async (targetUser) => {
@@ -174,12 +135,11 @@ const ManageUsersModal = ({ onClose }) => {
     }
 
     if (targetUser.email === currentUser?.email) {
-      toast.error('Operation Blocked: You cannot delete your own active Admin account.');
+      toast.error('Operation Refused: You cannot delete your own active administrator account.');
       return;
     }
 
-    const confirmText = `Are you sure you want to delete ${targetUser.role === 'HR_Manager' ? 'HR Manager' : 'User'} "${targetUser.first_name} ${targetUser.last_name}" (${targetUser.email})? This action cannot be undone.`;
-    if (!window.confirm(confirmText)) {
+    if (!window.confirm(`Are you sure you want to permanently delete user "${targetUser.first_name} ${targetUser.last_name}" (${targetUser.email})?`)) {
       return;
     }
 
@@ -187,11 +147,13 @@ const ManageUsersModal = ({ onClose }) => {
       try {
         await supabase.from('users').delete().eq('id', targetUser.id);
       } catch (err) {
-        console.warn('Supabase delete error:', err);
+        console.warn('Supabase user delete error:', err);
       }
     }
 
-    localStorage.removeItem(`mm_user_${targetUser.email.toLowerCase()}`);
+    try {
+      localStorage.removeItem(`mm_user_${targetUser.email.toLowerCase()}`);
+    } catch (_) {}
 
     setUsersList((prev) => prev.filter((u) => u.id !== targetUser.id));
     if (selectedUser?.id === targetUser.id) {
@@ -206,7 +168,7 @@ const ManageUsersModal = ({ onClose }) => {
       userEmail: currentUser?.email,
     });
 
-    toast.success(`User "${targetUser.first_name} ${targetUser.last_name}" deleted successfully.`);
+    toast.success(`User "${targetUser.first_name} ${targetUser.last_name}" deleted.`);
   };
 
   const handleToggleLock = async (targetUser) => {
@@ -291,17 +253,17 @@ const ManageUsersModal = ({ onClose }) => {
   });
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#1e1e1e] rounded-2xl border border-gray-800 w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="glass-panel rounded-2xl border border-white/10 w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-800 bg-[#252525]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#0A0E16]/80">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#d4a843]/20 border border-[#d4a843]/30 flex items-center justify-center text-[#d4a843]">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-white text-lg font-bold">HR Manager & User Management</h2>
-              <p className="text-gray-400 text-xs mt-0.5">Admin control: Delete HR Managers, view credentials, login audit logs & session history</p>
+              <h2 className="text-white text-base font-bold font-display">Evaluator & User Management</h2>
+              <p className="text-gray-400 text-xs font-mono">RBAC administration: delete evaluators, lock accounts, inspect authentication traces</p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition">
@@ -310,15 +272,15 @@ const ManageUsersModal = ({ onClose }) => {
         </div>
 
         {/* Toolbar & Filters */}
-        <div className="px-6 py-3.5 border-b border-gray-800 flex items-center justify-between gap-4 bg-[#1a1a1a]">
+        <div className="px-6 py-3 border-b border-white/10 flex items-center justify-between gap-4 bg-[#0A0E16]/60">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search by name, email, or employee ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-[#252525] border border-gray-700 rounded-lg text-xs text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#a8b88c] transition"
+              className="w-full pl-9 pr-4 py-2 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 transition font-mono"
             />
           </div>
 
@@ -326,60 +288,59 @@ const ManageUsersModal = ({ onClose }) => {
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-3 py-2 bg-[#252525] border border-gray-700 rounded-lg text-xs text-gray-300 focus:outline-none focus:border-[#a8b88c] cursor-pointer"
+              className="px-3 py-2 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-300 focus:outline-none focus:border-emerald-500/50 cursor-pointer font-mono"
             >
               <option value="All">All Roles</option>
-              <option value="HR_Manager">HR Managers Only</option>
+              <option value="HR_Manager">Evaluators Only</option>
               <option value="Admin">Admins Only</option>
             </select>
             <span className="text-gray-500 text-xs font-mono font-bold">
-              Total: {filteredUsers.length} Users
+              Total: {filteredUsers.length}
             </span>
           </div>
         </div>
 
-        {/* Content Body: Two Panel Layout */}
+        {/* Content Body */}
         <div className="flex-1 grid grid-cols-12 overflow-hidden">
           {/* Left Panel: Users Table */}
-          <div className="col-span-12 lg:col-span-6 border-r border-gray-800 overflow-y-auto p-5 space-y-3">
-            <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Registered Accounts</h3>
+          <div className="col-span-12 lg:col-span-6 border-r border-white/10 overflow-y-auto p-5 space-y-3">
+            <h3 className="text-gray-400 text-xs font-mono uppercase tracking-wider mb-2">Registered Accounts</h3>
 
             {loading ? (
-              <p className="text-gray-500 text-xs py-8 text-center animate-pulse">Loading user profiles...</p>
+              <p className="text-gray-500 text-xs py-8 text-center font-mono animate-pulse">Loading evaluator profiles...</p>
             ) : filteredUsers.length === 0 ? (
-              <p className="text-gray-500 text-xs py-8 text-center">No users found matching search.</p>
+              <p className="text-gray-500 text-xs py-8 text-center font-mono">No users found matching query.</p>
             ) : (
               filteredUsers.map((u) => (
                 <div
                   key={u.id}
-                  className={`p-4 rounded-xl border transition flex items-center justify-between gap-3 ${
+                  className={`p-3.5 rounded-xl border transition flex items-center justify-between gap-3 ${
                     selectedUser?.id === u.id
-                      ? 'bg-[#a8b88c]/10 border-[#a8b88c]'
-                      : 'bg-[#252525] border-gray-800 hover:border-gray-700'
+                      ? 'bg-emerald-500/10 border-emerald-500/40'
+                      : 'bg-[#0A0E16] border-white/5 hover:border-white/20'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-[#3a3a3a] border border-gray-700 flex items-center justify-center font-bold text-white text-xs flex-shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-surface border border-emerald-500/30 flex items-center justify-center font-bold text-emerald-400 text-xs font-display flex-shrink-0">
                       {`${u.first_name?.[0] || 'U'}${u.last_name?.[0] || ''}`}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-white text-sm font-bold truncate">{u.first_name} {u.last_name}</p>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
                           u.role === 'Admin'
-                            ? 'bg-[#d4a843]/20 border-[#d4a843]/40 text-[#d4a843]'
-                            : 'bg-[#a8b88c]/20 border-[#a8b88c]/40 text-[#a8b88c]'
+                            ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                            : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                         }`}>
                           {u.role}
                         </span>
                         {u.is_locked && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold font-mono bg-rose-500/20 text-rose-400 border border-rose-500/30">
                             Locked
                           </span>
                         )}
                       </div>
-                      <p className="text-gray-400 text-xs truncate">{u.email}</p>
-                      <p className="text-gray-500 text-[10px] mt-0.5">ID: <span className="font-mono">{u.user_id_field || u.id}</span></p>
+                      <p className="text-gray-400 text-xs font-mono truncate">{u.email}</p>
                     </div>
                   </div>
 
@@ -387,19 +348,19 @@ const ManageUsersModal = ({ onClose }) => {
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <button
                       onClick={() => handleSelectUserHistory(u)}
-                      className="px-2.5 py-1.5 bg-[#1e1e1e] hover:bg-[#333] border border-gray-700 text-gray-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
-                      title="Inspect History & Logins"
+                      className="px-2.5 py-1.5 bg-surface-card hover:bg-surface-elevated border border-white/10 text-gray-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition font-mono"
+                      title="Inspect History"
                     >
-                      <Eye className="w-3.5 h-3.5 text-[#a8b88c]" />
-                      <span>Details</span>
+                      <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Audit</span>
                     </button>
 
                     <button
                       onClick={() => handleToggleLock(u)}
                       className={`p-1.5 rounded-lg border transition ${
                         u.is_locked
-                          ? 'bg-red-500/20 border-red-500/40 text-red-400 hover:bg-red-500/30'
-                          : 'bg-[#1e1e1e] border-gray-700 text-gray-400 hover:text-yellow-400'
+                          ? 'bg-rose-500/20 border-rose-500/40 text-rose-400 hover:bg-rose-500/30'
+                          : 'bg-surface-card border-white/10 text-gray-400 hover:text-amber-400'
                       }`}
                       title={u.is_locked ? 'Unlock Account' : 'Lock Account'}
                     >
@@ -409,8 +370,8 @@ const ManageUsersModal = ({ onClose }) => {
                     <button
                       onClick={() => handleDeleteUser(u)}
                       disabled={u.email === currentUser?.email}
-                      className="p-1.5 bg-[#1e1e1e] hover:bg-red-500/20 border border-gray-700 hover:border-red-500/40 text-gray-400 hover:text-red-400 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed"
-                      title="Delete User (Admin Only)"
+                      className="p-1.5 bg-surface-card hover:bg-rose-500/20 border border-white/10 hover:border-rose-500/40 text-gray-400 hover:text-rose-400 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Delete User"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -420,72 +381,71 @@ const ManageUsersModal = ({ onClose }) => {
             )}
           </div>
 
-          {/* Right Panel: Selected HR Manager Profile, Sessions & Login History */}
-          <div className="col-span-12 lg:col-span-6 overflow-y-auto p-5 space-y-4 bg-[#1b1b1b]">
+          {/* Right Panel: History */}
+          <div className="col-span-12 lg:col-span-6 overflow-y-auto p-5 space-y-4 bg-[#0A0E16]/40">
             {selectedUser ? (
               <>
                 {/* User Summary Header */}
-                <div className="bg-[#252525] p-4 rounded-xl border border-gray-800 space-y-3">
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-800">
+                <div className="bg-[#0A0E16] p-4 rounded-xl border border-white/10 space-y-3">
+                  <div className="flex items-center justify-between pb-3 border-b border-white/10">
                     <div>
-                      <h3 className="text-white text-sm font-bold">{selectedUser.first_name} {selectedUser.last_name}</h3>
-                      <p className="text-gray-400 text-xs">{selectedUser.email}</p>
+                      <h3 className="text-white text-sm font-bold font-display">{selectedUser.first_name} {selectedUser.last_name}</h3>
+                      <p className="text-gray-400 text-xs font-mono">{selectedUser.email}</p>
                     </div>
                     <button
                       onClick={() => handleRoleToggle(selectedUser)}
-                      className="px-2.5 py-1 bg-[#1e1e1e] border border-gray-700 hover:border-[#d4a843] text-gray-300 hover:text-[#d4a843] rounded text-[11px] font-semibold transition"
-                      title="Switch role"
+                      className="px-2.5 py-1 bg-surface-card border border-white/10 hover:border-amber-400 text-gray-300 hover:text-amber-400 rounded-lg text-[11px] font-mono transition"
                     >
                       Switch to {selectedUser.role === 'Admin' ? 'HR Manager' : 'Admin'}
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="bg-[#1e1e1e] p-2.5 rounded-lg border border-gray-800">
-                      <span className="text-gray-500 block text-[10px]">Registered On</span>
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                    <div className="bg-[#0A0E16] p-2.5 rounded-lg border border-white/5">
+                      <span className="text-gray-500 block text-[10px]">Registered</span>
                       <span className="text-gray-200 font-medium">
                         {new Date(selectedUser.created_at || Date.now()).toLocaleDateString()}
                       </span>
                     </div>
-                    <div className="bg-[#1e1e1e] p-2.5 rounded-lg border border-gray-800">
-                      <span className="text-gray-500 block text-[10px]">Total Logins Recorded</span>
-                      <span className="text-[#d4a843] font-bold">{userLogins.length} Logins</span>
+                    <div className="bg-[#0A0E16] p-2.5 rounded-lg border border-white/5">
+                      <span className="text-gray-500 block text-[10px]">Logins Recorded</span>
+                      <span className="text-emerald-400 font-bold">{userLogins.length} Events</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Tab Navigation: Interview Sessions vs Login History */}
-                <div className="flex border-b border-gray-800">
+                {/* Tab Navigation */}
+                <div className="flex border-b border-white/10 font-mono">
                   <button
                     onClick={() => setActiveTab('sessions')}
                     className={`pb-2 px-4 text-xs font-bold transition border-b-2 flex items-center gap-1.5 ${
                       activeTab === 'sessions'
-                        ? 'border-[#a8b88c] text-[#a8b88c]'
+                        ? 'border-emerald-400 text-emerald-400'
                         : 'border-transparent text-gray-400 hover:text-gray-200'
                     }`}
                   >
                     <Activity className="w-3.5 h-3.5" />
-                    Interview Sessions ({userSessions.length})
+                    Proctor Sessions ({userSessions.length})
                   </button>
 
                   <button
                     onClick={() => setActiveTab('logins')}
                     className={`pb-2 px-4 text-xs font-bold transition border-b-2 flex items-center gap-1.5 ${
                       activeTab === 'logins'
-                        ? 'border-[#d4a843] text-[#d4a843]'
+                        ? 'border-amber-400 text-amber-400'
                         : 'border-transparent text-gray-400 hover:text-gray-200'
                     }`}
                   >
                     <LogIn className="w-3.5 h-3.5" />
-                    Login & Security History ({userLogins.length})
+                    Auth Traces ({userLogins.length})
                   </button>
                 </div>
 
-                {/* Tab 1: Interview Sessions History */}
+                {/* Tab 1: Sessions */}
                 {activeTab === 'sessions' && (
-                  <div className="space-y-2.5">
+                  <div className="space-y-2">
                     {userSessions.length === 0 ? (
-                      <p className="text-gray-500 text-xs py-4 text-center">No interview sessions conducted yet by this user.</p>
+                      <p className="text-gray-500 text-xs py-4 text-center font-mono">No sessions conducted yet.</p>
                     ) : (
                       userSessions.map((s) => (
                         <div
@@ -494,62 +454,43 @@ const ManageUsersModal = ({ onClose }) => {
                             onClose();
                             navigate(`/interviews/${s.id}`);
                           }}
-                          className="bg-[#252525] hover:bg-[#2e2e2e] p-3.5 rounded-xl border border-gray-800 hover:border-gray-700 cursor-pointer transition space-y-1.5 group"
+                          className="bg-[#0A0E16] hover:bg-white/[0.03] p-3 rounded-xl border border-white/5 hover:border-emerald-500/30 cursor-pointer transition space-y-1 group font-mono"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="text-white text-xs font-bold group-hover:text-[#a8b88c] transition">
+                            <span className="text-white text-xs font-bold group-hover:text-emerald-400 transition">
                               {s.candidate_name}
                             </span>
-                            <span className="text-[10px] px-2 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full font-semibold">
+                            <span className="text-[10px] px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full">
                               {s.status}
                             </span>
                           </div>
                           <p className="text-gray-400 text-[11px]">{s.position} · {s.round || 'Round 1'}</p>
-                          <div className="flex items-center justify-between text-[10px] text-gray-500 pt-1 border-t border-gray-800 font-mono">
-                            <span>{new Date(s.session_date || Date.now()).toLocaleDateString()}</span>
-                            <span>{Math.floor(s.duration_seconds / 60)}m {s.duration_seconds % 60}s · {s.noise_level_db} dB</span>
-                          </div>
                         </div>
                       ))
                     )}
                   </div>
                 )}
 
-                {/* Tab 2: Login & Authentication History */}
+                {/* Tab 2: Logins */}
                 {activeTab === 'logins' && (
-                  <div className="space-y-2.5">
+                  <div className="space-y-2">
                     {userLogins.length === 0 ? (
-                      <p className="text-gray-500 text-xs py-4 text-center">No login logs recorded yet for this user.</p>
+                      <p className="text-gray-500 text-xs py-4 text-center font-mono">No login logs recorded.</p>
                     ) : (
                       userLogins.map((log, idx) => (
                         <div
                           key={log.id || idx}
-                          className="bg-[#252525] p-3.5 rounded-xl border border-gray-800 space-y-1.5 text-xs"
+                          className="bg-[#0A0E16] p-3 rounded-xl border border-white/5 space-y-1 text-xs font-mono"
                         >
                           <div className="flex items-center justify-between">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
-                              log.action === 'USER_LOGOUT'
-                                ? 'bg-gray-700 text-gray-300'
-                                : log.action === 'PASSWORD_VERIFIED'
-                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                                : 'bg-green-500/20 text-green-400 border border-green-500/30'
-                            }`}>
-                              {log.action === 'USER_LOGOUT' ? <LogOut className="w-3 h-3" /> : <LogIn className="w-3 h-3" />}
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                               {log.action}
                             </span>
-                            <span className="text-gray-500 text-[11px] font-mono">
+                            <span className="text-gray-500 text-[10px]">
                               {new Date(log.created_at).toLocaleString()}
                             </span>
                           </div>
-
-                          <p className="text-gray-200 text-xs">{log.details}</p>
-
-                          <div className="flex items-center justify-between text-[10px] text-gray-500 pt-1 border-t border-gray-800 font-mono">
-                            <span className="flex items-center gap-1">
-                              <Laptop className="w-3 h-3 text-gray-400" /> {log.device || 'Chrome on Windows'}
-                            </span>
-                            <span>IP: {log.ip_address || '192.168.1.104'}</span>
-                          </div>
+                          <p className="text-gray-300 text-xs pt-0.5">{log.details}</p>
                         </div>
                       ))
                     )}
@@ -559,21 +500,21 @@ const ManageUsersModal = ({ onClose }) => {
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center py-16 px-4">
                 <Users className="w-10 h-10 text-gray-600 mb-2" />
-                <p className="text-gray-400 text-xs font-semibold">Select a User or HR Manager</p>
-                <p className="text-gray-600 text-[11px] mt-1">Click "Details" on any account to view their interview sessions and chronological login history.</p>
+                <p className="text-gray-400 text-xs font-semibold font-mono">Select an Evaluator Account</p>
+                <p className="text-gray-600 text-[11px] mt-1 font-mono">Click "Audit" to inspect proctor sessions and login history.</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-800 bg-[#252525] flex justify-between items-center text-xs">
-          <span className="text-gray-400">Admin Privileges Active: Full delete, lock, login history & session audit capability</span>
+        <div className="px-6 py-4 border-t border-white/10 bg-[#0A0E16]/80 flex justify-between items-center text-xs font-mono">
+          <span className="text-gray-500">Chief Proctor Privileges Active</span>
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-[#1e1e1e] hover:bg-[#333] border border-gray-700 text-gray-200 rounded-lg font-bold transition"
+            className="px-5 py-2 bg-surface-card hover:bg-surface-elevated border border-white/10 text-gray-200 rounded-xl font-semibold transition"
           >
-            Close Management Panel
+            Close Panel
           </button>
         </div>
       </div>

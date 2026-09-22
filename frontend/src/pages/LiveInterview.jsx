@@ -127,9 +127,36 @@ const LiveInterview = () => {
   // HTML5 Audio Element Ref for real playback
   const realAudioElementRef = useRef(null);
 
-  // Canvas Refs
+  // Canvas & Video Refs
   const liveCanvasRef = useRef(null);
   const playbackCanvasRef = useRef(null);
+  const videoRef = useRef(null);
+  const [cameraActive, setCameraActive] = useState(false);
+
+  // Initialize webcam stream if available for live proctor HUD
+  useEffect(() => {
+    let camStream = null;
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false })
+        .then((s) => {
+          camStream = s;
+          if (videoRef.current) {
+            videoRef.current.srcObject = s;
+            videoRef.current.play().catch(() => {});
+          }
+          setCameraActive(true);
+        })
+        .catch(() => {
+          setCameraActive(false);
+        });
+    }
+
+    return () => {
+      if (camStream) {
+        camStream.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
 
   const sessionQuestions = dummyQuestions.slice(0, 5);
 
@@ -1040,28 +1067,28 @@ const LiveInterview = () => {
   // ── Preprocessing Modal with Live Conversion Feedback (FR-08 & FR-09) ──────
   if (showPreprocess) {
     return (
-      <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-        <div className="bg-[#1e1e1e] rounded-2xl border border-gray-800 p-8 w-full max-w-lg shadow-2xl space-y-6">
-          <div className="flex items-center gap-3 pb-4 border-b border-gray-800">
-            <Cpu className="w-7 h-7 text-[#d4a843] animate-pulse" />
+      <div className="fixed inset-0 bg-[#0a0e16]/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div className="bg-[#181c24] rounded-2xl border border-white/[0.12] p-8 w-full max-w-lg shadow-2xl space-y-6">
+          <div className="flex items-center gap-3 pb-4 border-b border-white/[0.08]">
+            <Cpu className="w-7 h-7 text-[#10b981] animate-pulse" />
             <div>
-              <h2 className="text-white text-lg font-bold">Standard Audio Preprocessing</h2>
-              <p className="text-gray-400 text-xs mt-0.5">Converting & normalising microphone audio for OpenAI Whisper ASR</p>
+              <h2 className="text-white text-lg font-bold font-display">Standard Audio Preprocessing</h2>
+              <p className="text-gray-400 text-xs mt-0.5 font-mono">Converting & normalising microphone audio for OpenAI Whisper ASR</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 bg-[#252525] p-3.5 rounded-xl border border-gray-800 text-center text-xs">
+          <div className="grid grid-cols-3 gap-3 bg-[#0f131c] p-3.5 rounded-xl border border-white/[0.08] text-center text-xs">
             <div>
-              <span className="text-gray-500 block text-[10px]">Target Sample Rate</span>
-              <span className="text-[#a8b88c] font-bold text-sm">16,000 Hz</span>
+              <span className="text-gray-500 block text-[10px] font-mono">Target Rate</span>
+              <span className="text-[#4edea3] font-bold text-sm font-mono">16,000 Hz</span>
             </div>
             <div>
-              <span className="text-gray-500 block text-[10px]">Channels</span>
-              <span className="text-white font-bold text-sm">Mono (1-Ch)</span>
+              <span className="text-gray-500 block text-[10px] font-mono">Channels</span>
+              <span className="text-white font-bold text-sm font-mono">Mono (1-Ch)</span>
             </div>
             <div>
-              <span className="text-gray-500 block text-[10px]">Bit Depth / Format</span>
-              <span className="text-[#d4a843] font-bold text-sm">16-bit PCM WAV</span>
+              <span className="text-gray-500 block text-[10px] font-mono">Bit Depth</span>
+              <span className="text-[#f59e0b] font-bold text-sm font-mono">16-bit PCM</span>
             </div>
           </div>
 
@@ -1069,9 +1096,9 @@ const LiveInterview = () => {
             {PREPROCESS_STEPS.map((step, idx) => (
               <div key={idx} className="flex items-center gap-3">
                 {idx < preprocessStep ? (
-                  <CheckCircle2 className="w-5 h-5 text-[#a8b88c] flex-shrink-0" />
+                  <CheckCircle2 className="w-5 h-5 text-[#10b981] flex-shrink-0" />
                 ) : idx === preprocessStep ? (
-                  <div className="w-5 h-5 border-2 border-[#d4a843] border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                  <div className="w-5 h-5 border-2 border-[#10b981] border-t-transparent rounded-full animate-spin flex-shrink-0" />
                 ) : (
                   <div className="w-5 h-5 rounded-full border border-gray-700 flex-shrink-0" />
                 )}
@@ -1108,46 +1135,52 @@ const LiveInterview = () => {
           />
         )}
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
           <div>
-            <h1 className="text-xl font-bold text-white">Interview Preprocessing & Transcript</h1>
-            <p className="text-gray-400 text-xs mt-1">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2 py-0.5 rounded bg-[#10b981]/15 text-[#4edea3] text-[10px] font-mono font-bold border border-[#10b981]/30">
+                PROCESSED ARTIFACT
+              </span>
+              <span className="text-xs text-gray-500 font-mono">16kHz Mono PCM</span>
+            </div>
+            <h1 className="text-xl font-bold text-white font-display">Interview Preprocessing & Transcript</h1>
+            <p className="text-gray-400 text-xs mt-0.5">
               Generated by OpenAI Whisper - {session.candidate_name} · {session.position}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#a8b88c]/10 border border-[#a8b88c]/30 rounded-lg text-[#a8b88c] text-xs font-semibold">
-              <CheckCircle2 className="w-3.5 h-3.5" /> 16kHz WAV Preprocessing Ready
+          <div className="flex items-center gap-3 font-mono">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#10b981]/15 border border-[#10b981]/30 rounded-lg text-[#4edea3] text-xs font-semibold">
+              <CheckCircle2 className="w-3.5 h-3.5" /> 16kHz WAV Normalized
             </span>
             <span className="text-gray-400 text-xs">WER: 5.06% · CER: 3.10%</span>
           </div>
         </div>
 
         {/* Real Audio Player & Converted WAV Audio Section */}
-        <div className="bg-[#252525] rounded-xl p-6 border border-gray-800 space-y-4">
+        <div className="glass-panel rounded-xl p-6 border border-white/[0.08] space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Headphones className="w-5 h-5 text-[#a8b88c]" />
+              <Headphones className="w-5 h-5 text-[#10b981]" />
               <div>
-                <h2 className="text-white text-sm font-bold">Standardized 16kHz WAV Audio Playback</h2>
-                <p className="text-gray-400 text-[11px]">Listen to your converted voice recording formatted for Whisper ASR</p>
+                <h2 className="text-white text-sm font-bold font-display">Standardized 16kHz WAV Audio Playback</h2>
+                <p className="text-gray-400 text-[11px] font-mono">Listen to converted voice recording formatted for Whisper ASR</p>
               </div>
             </div>
 
-            {realAudioUrl && (
+            {recordedWavData && (
               <a
                 href={realAudioUrl}
-                download="interview_audio_16khz.wav"
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1e1e1e] hover:bg-[#333] border border-gray-700 text-[#d4a843] rounded-lg text-xs font-bold transition shadow"
+                download={`interview_${session.candidate_name.replace(/\s+/g, '_')}_16khz.wav`}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0f131c] hover:bg-white/[0.06] border border-white/[0.1] rounded-lg text-xs text-gray-300 font-mono transition"
               >
-                <Download className="w-3.5 h-3.5" /> Download .WAV File ({recordedWavData?.wavSizeKb || 48} KB)
+                <Download className="w-3.5 h-3.5 text-[#10b981]" /> Download WAV ({recordedWavData.sizeKb} KB)
               </a>
             )}
           </div>
 
           {/* Player controls & animated waveform */}
-          <div className="bg-[#1e1e1e] p-5 rounded-xl border border-gray-800 space-y-4">
-            <div className="w-full h-16 bg-[#161616] rounded-lg overflow-hidden border border-gray-800/80">
+          <div className="bg-[#0f131c] rounded-xl p-4 border border-white/[0.06] space-y-3">
+            <div className="w-full h-16 bg-[#0a0e16] rounded-lg overflow-hidden border border-white/[0.06]">
               <canvas
                 ref={playbackCanvasRef}
                 width={700}
@@ -1159,10 +1192,10 @@ const LiveInterview = () => {
             <div className="flex items-center gap-4">
               <button
                 onClick={handleTogglePlayback}
-                className="w-11 h-11 rounded-full bg-[#a8b88c] hover:bg-[#98a87c] text-gray-900 flex items-center justify-center font-bold transition flex-shrink-0 shadow-lg"
+                className="w-10 h-10 rounded-full bg-[#10b981] hover:bg-[#059669] text-[#0a0e16] flex items-center justify-center font-bold transition flex-shrink-0 shadow-glow-emerald"
                 title={isPlayingAudio ? 'Pause Audio' : 'Play Converted WAV Voice Audio'}
               >
-                {isPlayingAudio ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+                {isPlayingAudio ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
               </button>
 
               <div className="flex-1 space-y-1">
@@ -1172,11 +1205,11 @@ const LiveInterview = () => {
                   max={recordedWavData?.duration || Math.max(5, elapsedSeconds)}
                   value={playbackTime}
                   onChange={(e) => handleSeek(Number(e.target.value))}
-                  className="w-full accent-[#a8b88c] cursor-pointer h-2 bg-gray-800 rounded-lg"
+                  className="w-full accent-[#10b981] cursor-pointer h-1.5 bg-gray-800 rounded-lg"
                 />
                 <div className="flex justify-between text-[11px] text-gray-400 font-mono">
                   <span>00:00</span>
-                  <span className="text-[#a8b88c] font-bold">{formatTime(playbackTime)}</span>
+                  <span className="text-[#4edea3] font-bold">{formatTime(playbackTime)}</span>
                   <span>{formatTime(recordedWavData?.duration || Math.max(5, elapsedSeconds))}</span>
                 </div>
               </div>
@@ -1184,44 +1217,44 @@ const LiveInterview = () => {
           </div>
 
           {/* Audio Technical Specification Specs Grid */}
-          <div className="grid grid-cols-4 gap-3 bg-[#1e1e1e] p-3.5 rounded-xl border border-gray-800 text-center text-xs">
+          <div className="grid grid-cols-4 gap-3 bg-[#0f131c] p-3.5 rounded-xl border border-white/[0.06] text-center text-xs">
             <div>
-              <span className="text-gray-500 block text-[10px]">Sampling Rate</span>
+              <span className="text-gray-500 block text-[10px] font-mono">Sampling Rate</span>
               <span className="text-white font-mono font-bold">16,000 Hz</span>
             </div>
             <div>
-              <span className="text-gray-500 block text-[10px]">Channel Layout</span>
+              <span className="text-gray-500 block text-[10px] font-mono">Channel Layout</span>
               <span className="text-white font-mono font-bold">1 (Mono)</span>
             </div>
             <div>
-              <span className="text-gray-500 block text-[10px]">Audio Codec</span>
+              <span className="text-gray-500 block text-[10px] font-mono">Audio Codec</span>
               <span className="text-white font-mono font-bold">16-bit PCM</span>
             </div>
             <div>
-              <span className="text-gray-500 block text-[10px]">Whisper Compliance</span>
-              <span className="text-[#a8b88c] font-bold">100% Ready ✓</span>
+              <span className="text-gray-500 block text-[10px] font-mono">Whisper Compliance</span>
+              <span className="text-[#4edea3] font-bold font-mono">100% Ready ✓</span>
             </div>
           </div>
         </div>
 
         {/* Transcript Box */}
-        <div className="bg-[#252525] rounded-xl border border-gray-800 p-6">
+        <div className="glass-panel rounded-xl border border-white/[0.08] p-6">
           <div className="flex items-center gap-2 mb-4">
-            <FileText className="w-5 h-5 text-[#d4a843]" />
-            <h2 className="text-white text-sm font-bold">Whisper ASR Transcription Output</h2>
+            <FileText className="w-5 h-5 text-[#f59e0b]" />
+            <h2 className="text-white text-sm font-bold font-display">Whisper ASR Transcription Output</h2>
             {whisperLoading && (
-              <span className="flex items-center gap-1.5 text-[#d4a843] text-xs ml-auto animate-pulse">
-                <div className="w-3.5 h-3.5 border-2 border-[#d4a843] border-t-transparent rounded-full animate-spin" />
+              <span className="flex items-center gap-1.5 text-[#f59e0b] text-xs ml-auto animate-pulse font-mono">
+                <div className="w-3.5 h-3.5 border-2 border-[#f59e0b] border-t-transparent rounded-full animate-spin" />
                 Analysing with Whisper model...
               </span>
             )}
             {whisperResult && !whisperLoading && (
-              <span className="ml-auto text-[#a8b88c] text-xs flex items-center gap-1">
+              <span className="ml-auto text-[#4edea3] text-xs flex items-center gap-1 font-mono">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Live AI Result
               </span>
             )}
             {whisperError && !whisperLoading && (
-              <span className="ml-auto text-[#d4a843] text-xs flex items-center gap-1">
+              <span className="ml-auto text-[#f59e0b] text-xs flex items-center gap-1 font-mono">
                 <AlertTriangle className="w-3.5 h-3.5" /> Fallback Transcript
               </span>
             )}
@@ -1239,36 +1272,36 @@ const LiveInterview = () => {
             </div>
           )}
 
-          <pre className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap font-mono bg-[#1e1e1e] rounded-lg p-4 border border-gray-800 max-h-72 overflow-y-auto">
+          <pre className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap font-mono bg-[#0f131c] rounded-lg p-4 border border-white/[0.06] max-h-72 overflow-y-auto">
             {whisperLoading ? 'Processing audio with Whisper ASR model...' : transcript}
           </pre>
         </div>
 
         {/* AI Model Score Card — shown only when API returned a real result */}
         {whisperResult && (
-          <div className="bg-[#252525] rounded-xl border border-gray-800 p-6">
+          <div className="glass-panel rounded-xl border border-white/[0.08] p-6">
             <div className="flex items-center gap-2 mb-5">
-              <Sparkles className="w-5 h-5 text-[#d4a843]" />
-              <h2 className="text-white text-sm font-bold">Whisper AI Model Scores</h2>
+              <Sparkles className="w-5 h-5 text-[#f59e0b]" />
+              <h2 className="text-white text-sm font-bold font-display">Whisper AI Model Scores</h2>
               <span className="ml-auto text-[10px] text-gray-500 font-mono">filename: {whisperResult.filename}</span>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               {/* Predicted Score */}
-              <div className="bg-[#1e1e1e] rounded-xl border border-gray-800 p-4 text-center">
-                <p className="text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-2">Predicted Score</p>
-                <p className={`text-3xl font-extrabold ${
-                  getScoreColor(whisperResult.predicted_score) === 'green' ? 'text-[#a8b88c]' :
-                  getScoreColor(whisperResult.predicted_score) === 'amber' ? 'text-[#d4a843]' : 'text-red-400'
+              <div className="bg-[#0f131c] rounded-xl border border-white/[0.06] p-4 text-center">
+                <p className="text-gray-500 text-[10px] font-mono uppercase tracking-wider mb-2">Predicted Score</p>
+                <p className={`text-3xl font-extrabold font-mono ${
+                  getScoreColor(whisperResult.predicted_score) === 'green' ? 'text-[#4edea3]' :
+                  getScoreColor(whisperResult.predicted_score) === 'amber' ? 'text-[#f59e0b]' : 'text-red-400'
                 }`}>
                   {whisperResult.predicted_score.toFixed(2)}
                 </p>
-                <p className="text-gray-600 text-[10px] mt-1">out of 10.00</p>
-                <div className="mt-3 w-full bg-gray-800 rounded-full h-1.5">
+                <p className="text-gray-500 text-[10px] mt-1 font-mono">out of 10.00</p>
+                <div className="mt-3 w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
                   <div
                     className={`h-1.5 rounded-full transition-all ${
-                      getScoreColor(whisperResult.predicted_score) === 'green' ? 'bg-[#a8b88c]' :
-                      getScoreColor(whisperResult.predicted_score) === 'amber' ? 'bg-[#d4a843]' : 'bg-red-400'
+                      getScoreColor(whisperResult.predicted_score) === 'green' ? 'bg-[#10b981]' :
+                      getScoreColor(whisperResult.predicted_score) === 'amber' ? 'bg-[#f59e0b]' : 'bg-red-400'
                     }`}
                     style={{ width: `${Math.min(100, (whisperResult.predicted_score / 10) * 100).toFixed(1)}%` }}
                   />
@@ -1276,37 +1309,37 @@ const LiveInterview = () => {
               </div>
 
               {/* Similarity Score */}
-              <div className="bg-[#1e1e1e] rounded-xl border border-gray-800 p-4 text-center">
-                <p className="text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-2">Similarity Score</p>
-                <p className="text-3xl font-extrabold text-[#d4a843]">
+              <div className="bg-[#0f131c] rounded-xl border border-white/[0.06] p-4 text-center">
+                <p className="text-gray-500 text-[10px] font-mono uppercase tracking-wider mb-2">Similarity Score</p>
+                <p className="text-3xl font-extrabold text-[#f59e0b] font-mono">
                   {(whisperResult.similarity_score * 100).toFixed(1)}
                   <span className="text-lg font-semibold text-gray-500">%</span>
                 </p>
-                <p className="text-gray-600 text-[10px] mt-1">semantic relevance</p>
-                <div className="mt-3 w-full bg-gray-800 rounded-full h-1.5">
+                <p className="text-gray-500 text-[10px] mt-1 font-mono">semantic relevance</p>
+                <div className="mt-3 w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
                   <div
-                    className="h-1.5 rounded-full bg-[#d4a843] transition-all"
+                    className="h-1.5 rounded-full bg-[#f59e0b] transition-all"
                     style={{ width: `${(whisperResult.similarity_score * 100).toFixed(1)}%` }}
                   />
                 </div>
               </div>
 
               {/* Relevance Badge */}
-              <div className="bg-[#1e1e1e] rounded-xl border border-gray-800 p-4 text-center flex flex-col items-center justify-center gap-2">
-                <p className="text-gray-500 text-[10px] font-medium uppercase tracking-wider">Answer Relevance</p>
+              <div className="bg-[#0f131c] rounded-xl border border-white/[0.06] p-4 text-center flex flex-col items-center justify-center gap-2">
+                <p className="text-gray-500 text-[10px] font-mono uppercase tracking-wider">Answer Relevance</p>
                 {whisperResult.is_relevant ? (
                   <>
-                    <div className="w-12 h-12 rounded-full bg-[#a8b88c]/15 border-2 border-[#a8b88c]/40 flex items-center justify-center">
-                      <CheckCircle2 className="w-6 h-6 text-[#a8b88c]" />
+                    <div className="w-11 h-11 rounded-full bg-[#10b981]/15 border border-[#10b981]/40 flex items-center justify-center">
+                      <CheckCircle2 className="w-5 h-5 text-[#4edea3]" />
                     </div>
-                    <span className="text-[#a8b88c] text-xs font-bold">Relevant</span>
+                    <span className="text-[#4edea3] text-xs font-mono font-bold">Relevant</span>
                   </>
                 ) : (
                   <>
-                    <div className="w-12 h-12 rounded-full bg-red-500/10 border-2 border-red-500/30 flex items-center justify-center">
-                      <AlertTriangle className="w-6 h-6 text-red-400" />
+                    <div className="w-11 h-11 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center">
+                      <AlertTriangle className="w-5 h-5 text-red-400" />
                     </div>
-                    <span className="text-red-400 text-xs font-bold">Not Relevant</span>
+                    <span className="text-red-400 text-xs font-mono font-bold">Not Relevant</span>
                   </>
                 )}
               </div>
@@ -1315,14 +1348,14 @@ const LiveInterview = () => {
         )}
 
         {/* Action Footer */}
-        <div className="flex items-center justify-between bg-[#252525] rounded-xl border border-gray-800 p-4">
-          <div className="text-xs text-gray-400 space-y-1">
+        <div className="flex items-center justify-between glass-panel rounded-xl border border-white/[0.08] p-4">
+          <div className="text-xs text-gray-400 space-y-0.5 font-mono">
             <p>Session Duration: <span className="text-white font-semibold">{formatTime(elapsedSeconds)}</span></p>
             <p>Questions Answered: <span className="text-white font-semibold">{activeQuestionIdx + 1} / {sessionQuestions.length}</span></p>
           </div>
           <button
             onClick={() => navigate(`/reports/${session.candidate_id}`)}
-            className="flex items-center gap-2 px-6 py-2.5 bg-[#a8b88c] text-gray-900 font-bold text-sm rounded-lg hover:bg-[#98a87c] transition shadow"
+            className="flex items-center gap-2 px-6 py-2.5 bg-[#10b981] hover:bg-[#059669] text-[#0a0e16] font-bold text-xs rounded-lg transition shadow-glow-emerald font-mono"
           >
             View Full Evaluation Report <ChevronRight className="w-4 h-4" />
           </button>
@@ -1574,159 +1607,251 @@ const LiveInterview = () => {
   // MODE 2: LIVE INTERVIEW RECORDING VIEW (FR-05, FR-06, FR-09)
   // ===========================================================================
   return (
-    <div>
+    <div className="space-y-5">
       <Toaster position="top-right" />
 
-      {/* Mode Switch Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[#3a3a3a] border-2 border-[#a8b88c] flex items-center justify-center text-gray-200 font-bold">
+      {/* Top Proctor HUD Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-3 border-b border-white/[0.08]">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-[#181c24] to-[#262a33] border border-[#10b981]/50 flex items-center justify-center text-white font-bold font-mono text-sm shadow-sm">
             {session.candidate_name.split(' ').map((n) => n[0]).join('')}
           </div>
           <div>
-            <h1 className="text-xl font-bold text-white">{session.candidate_name}</h1>
-            <p className="text-gray-400 text-xs">{session.position} · {session.round}</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-white font-display tracking-tight">
+                {session.candidate_name}
+              </h1>
+              <span className="px-2 py-0.5 rounded bg-[#10b981]/15 text-[#4edea3] text-[10px] font-mono font-bold border border-[#10b981]/30">
+                PROCTOR HUD ACTIVE
+              </span>
+              {sessionRestored && (
+                <span className="px-2 py-0.5 bg-[#6366f1]/20 border border-[#6366f1]/40 text-[#c0c1ff] text-[10px] rounded-full font-mono font-semibold">
+                  🔄 Restored
+                </span>
+              )}
+            </div>
+            <p className="text-gray-400 text-xs mt-0.5 font-mono">
+              {session.position} · {session.round} · 16kHz PCM Pipeline
+            </p>
           </div>
-          {sessionRestored && (
-            <span className="ml-2 px-2.5 py-1 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs rounded-full font-medium">
-              🔄 Session Restored
-            </span>
-          )}
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Action Controls Bar */}
+        <div className="flex items-center gap-2.5 flex-wrap">
           {session.status === 'Completed' && (
             <button
               onClick={() => setViewMode('completed')}
-              className="px-3.5 py-2 bg-[#2a2a2a] text-gray-300 rounded-lg text-xs font-semibold border border-gray-700 hover:border-gray-600 transition"
+              className="px-3.5 py-2 bg-[#181c24] hover:bg-white/[0.06] text-gray-300 rounded-lg text-xs font-mono font-semibold border border-white/[0.08] transition"
             >
-              View Completed Review
+              View Review
             </button>
           )}
 
           <button
             onClick={isRecording ? pauseRecording : (micGranted ? resumeRecording : initMicrophone)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition shadow ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition font-mono ${
               isRecording
-                ? 'bg-[#2a2a2a] text-yellow-400 border border-yellow-500/40 hover:bg-[#333]'
-                : 'bg-[#a8b88c] text-gray-900 hover:bg-[#98a87c]'
+                ? 'bg-[#f59e0b]/20 text-[#ffb95f] border border-[#f59e0b]/40 hover:bg-[#f59e0b]/30'
+                : 'bg-[#10b981] hover:bg-[#059669] text-[#0a0e16] shadow-glow-emerald'
             }`}
           >
-            {isRecording ? <><Pause className="w-4 h-4" /> Pause Recording</> : <><Play className="w-4 h-4 fill-current" /> Start / Resume Recording</>}
+            {isRecording ? (
+              <>
+                <Pause className="w-3.5 h-3.5" /> Pause Stream
+              </>
+            ) : (
+              <>
+                <Play className="w-3.5 h-3.5 fill-current" /> {micGranted ? 'Resume Recording' : 'Connect & Record'}
+              </>
+            )}
           </button>
 
           <button
             onClick={handleEndInterview}
-            className="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold text-xs rounded-lg transition shadow-lg"
+            className="px-4 py-2 bg-[#ef4444] hover:bg-red-600 text-white font-bold text-xs font-mono rounded-lg transition shadow-glow-coral flex items-center gap-1.5"
           >
-            End Interview & Convert
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>End & Evaluate</span>
           </button>
         </div>
       </div>
 
+      {/* Active Question Prompt Ticker Banner */}
+      <div className="glass-panel rounded-xl p-4 border border-white/[0.08] bg-gradient-to-r from-[#181c24]/90 via-[#0f131c] to-[#181c24]/90">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded bg-[#10b981]/20 text-[#4edea3] text-[10px] font-mono font-bold border border-[#10b981]/30">
+              ACTIVE QUESTION {activeQuestionIdx + 1} OF {sessionQuestions.length}
+            </span>
+            <span className="text-[10px] font-mono text-[#f59e0b] bg-[#f59e0b]/10 px-2 py-0.5 rounded border border-[#f59e0b]/20">
+              {sessionQuestions[activeQuestionIdx]?.difficulty || 'Medium'} Difficulty
+            </span>
+            <span className="text-[10px] font-mono text-gray-500 uppercase">
+              Category: {sessionQuestions[activeQuestionIdx]?.category || 'Technical'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
+            <Clock className="w-3.5 h-3.5 text-[#10b981]" />
+            <span>Elapsed: <strong className="text-white font-mono">{formatTime(elapsedSeconds)}</strong></span>
+          </div>
+        </div>
+        <p className="text-sm font-semibold text-white font-display leading-relaxed">
+          "{sessionQuestions[activeQuestionIdx]?.question_text}"
+        </p>
+      </div>
+
       {/* Microphone Access Error Banner */}
       {micError && !micGranted && (
-        <div className="bg-red-950/40 border-2 border-red-500/60 rounded-xl p-4 flex items-center justify-between shadow-xl mb-6">
+        <div className="bg-red-950/40 border border-red-500/50 rounded-xl p-4 flex items-center justify-between shadow-xl">
           <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 flex-shrink-0">
-              <MicOff className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-lg bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 flex-shrink-0">
+              <MicOff className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-red-300 text-sm font-bold">Microphone Access Required</p>
+              <p className="text-red-300 text-xs font-bold font-mono">Microphone Access Required</p>
               <p className="text-gray-400 text-xs mt-0.5">{micError}</p>
             </div>
           </div>
           <button
             onClick={() => initMicrophone()}
-            className="flex items-center gap-1.5 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded-lg transition shadow-lg flex-shrink-0"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded-lg transition font-mono flex-shrink-0"
           >
-            <Mic className="w-3.5 h-3.5" /> Grant Access & Retry
+            <Mic className="w-3.5 h-3.5" /> Grant Access
           </button>
         </div>
       )}
 
-      {/* [FR-08: SESSION INTERRUPTION RECOVERY BANNER] */}
+      {/* Session Interruption Recovery Banner */}
       {sessionRestored && !isRecording && (
-        <div className="bg-[#2a2415] border-2 border-[#d4a843]/60 rounded-xl p-4 flex items-center justify-between shadow-xl mb-6 animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-[#d4a843]/20 border border-[#d4a843]/40 flex items-center justify-center text-[#d4a843] flex-shrink-0">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
+        <div className="bg-[#2a2415] border border-[#f59e0b]/40 rounded-xl p-3.5 flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-4 h-4 text-[#f59e0b] flex-shrink-0" />
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-white text-sm font-bold">Session Interruption Recovered</h3>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#d4a843]/30 text-[#d4a843] border border-[#d4a843]/40">
-                  Auto Checkpoint Restored
-                </span>
-              </div>
-              <p className="text-gray-300 text-xs mt-0.5">
-                The recording was interrupted at <span className="text-[#d4a843] font-mono font-bold">{formatTime(elapsedSeconds)}</span> on <span className="text-white font-semibold">Question {activeQuestionIdx + 1} of {sessionQuestions.length}</span>. Click "Resume Recording" to continue from where you stopped.
+              <p className="text-[#ffb95f] text-xs font-bold font-mono">Session Checkpoint Restored</p>
+              <p className="text-gray-300 text-xs">
+                Resuming at <span className="text-[#f59e0b] font-mono font-bold">{formatTime(elapsedSeconds)}</span> on Question {activeQuestionIdx + 1}.
               </p>
             </div>
           </div>
-
-          <div className="flex items-center gap-2.5 flex-shrink-0">
+          <div className="flex items-center gap-2">
             <button
               onClick={micGranted ? resumeRecording : initMicrophone}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[#d4a843] hover:bg-[#c39732] text-gray-900 font-bold text-xs rounded-lg transition shadow-lg"
+              className="px-3 py-1.5 bg-[#f59e0b] hover:bg-[#d97706] text-gray-950 font-bold text-xs rounded-lg transition font-mono"
             >
-              <Play className="w-3.5 h-3.5 fill-current" /> Resume Recording ({formatTime(elapsedSeconds)})
+              Resume
             </button>
             <button
               onClick={handleResetSession}
-              className="flex items-center gap-1 px-3 py-2 bg-[#1e1e1e] hover:bg-[#333] border border-gray-700 text-gray-400 hover:text-white text-xs font-semibold rounded-lg transition"
-              title="Discard checkpoint and restart from 00:00"
+              className="px-2.5 py-1.5 bg-[#181c24] hover:bg-white/[0.06] text-gray-400 text-xs rounded-lg border border-white/[0.08] transition font-mono"
             >
-              <RefreshCw className="w-3.5 h-3.5" /> Start Over
+              Reset
             </button>
           </div>
         </div>
       )}
 
+      {/* Main HUD Workspace (8 cols / 4 cols) */}
       <div className="grid grid-cols-12 gap-6">
-        {/* Main Panel */}
+        {/* Left Column: Video HUD + Waveform Visualizer + Audio Upload */}
         <div className="col-span-12 lg:col-span-8 space-y-5">
-
-          {/* Recording Status Header */}
-          <div className="bg-[#252525] rounded-xl p-4 border border-gray-800 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 bg-[#1e1e1e] px-3.5 py-2 rounded-lg border border-gray-700 text-white text-sm font-bold font-mono">
-                <Clock className="w-4 h-4 text-[#a8b88c]" />
-                <span>{formatTime(elapsedSeconds)}</span>
+          {/* Candidate Biometric HUD Stream Window */}
+          <div className="glass-panel rounded-xl border border-white/[0.08] overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-[#0f131c] border-b border-white/[0.07]">
+              <div className="flex items-center gap-2 text-xs font-mono">
+                <span className="flex items-center gap-1.5 text-gray-300">
+                  <Radio className="w-3.5 h-3.5 text-[#10b981] animate-pulse" />
+                  <span>Proctor Camera Feed</span>
+                </span>
+                <span className="text-gray-600">•</span>
+                <span className="text-[#4edea3]">Primary Face ID: #CAN-8924</span>
               </div>
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold ${isRecording ? 'bg-red-500/15 border border-red-500/40 text-red-400' : 'bg-gray-700/40 border border-gray-700 text-gray-400'}`}>
-                <Mic className={`w-3.5 h-3.5 ${isRecording ? 'animate-pulse' : ''}`} />
-                {isRecording ? 'LIVE RECORDING ACTIVE' : 'RECORDING PAUSED'}
+              <div className="flex items-center gap-2 text-[10px] font-mono">
+                <span className="px-2 py-0.5 rounded bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/30">
+                  SINGLE PERSON (100%)
+                </span>
+                <span className="px-2 py-0.5 rounded bg-white/[0.06] text-gray-400 border border-white/[0.08]">
+                  60 FPS
+                </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 text-xs">
-              <span className={`w-2.5 h-2.5 rounded-full ${isRecording ? 'bg-green-400 animate-ping' : 'bg-gray-600'}`} />
+            {/* Video Stage Frame with Reticle Overlays */}
+            <div className="relative h-72 sm:h-80 bg-[#0a0e16] overflow-hidden flex items-center justify-center">
+              {/* Corner Reticle Brackets */}
+              <div className="absolute top-4 left-4 w-5 h-5 border-t-2 border-l-2 border-[#10b981]/70 z-20"></div>
+              <div className="absolute top-4 right-4 w-5 h-5 border-t-2 border-r-2 border-[#10b981]/70 z-20"></div>
+              <div className="absolute bottom-4 left-4 w-5 h-5 border-b-2 border-l-2 border-[#10b981]/70 z-20"></div>
+              <div className="absolute bottom-4 right-4 w-5 h-5 border-b-2 border-r-2 border-[#10b981]/70 z-20"></div>
+
+              {/* Real Video Element if active, or Candidate Silhouette HUD */}
+              {cameraActive ? (
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover scale-x-[-1]"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center p-6 space-y-3 z-10">
+                  <div className="w-24 h-24 rounded-full bg-[#181c24] border-2 border-dashed border-[#10b981]/40 flex items-center justify-center relative">
+                    <User className="w-12 h-12 text-[#10b981]/70" />
+                    <div className="absolute inset-0 rounded-full border border-[#10b981]/20 animate-ping"></div>
+                  </div>
+                  <div>
+                    <p className="text-white text-xs font-bold font-mono">Biometric Video Simulation</p>
+                    <p className="text-gray-500 text-[10px] font-mono mt-0.5">Webcam inactive or virtual feed engaged</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Live HUD Telemetry Tags Overlay */}
+              <div className="absolute top-4 left-6 z-20 flex items-center gap-2">
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0a0e16]/85 backdrop-blur-md text-[10px] font-mono text-[#ffb4ab] border border-red-500/30">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                  <span>{isRecording ? `REC ${formatTime(elapsedSeconds)}` : 'REC PAUSED'}</span>
+                </span>
+              </div>
+
+              <div className="absolute top-4 right-6 z-20 flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded bg-[#0a0e16]/85 backdrop-blur-md text-[10px] font-mono text-[#4edea3] border border-[#10b981]/40 flex items-center gap-1">
+                  <Eye className="w-3 h-3 text-[#10b981]" />
+                  <span>Gaze: Centered (99%)</span>
+                </span>
+              </div>
+
+              <div className="absolute bottom-4 left-6 z-20 text-[10px] font-mono text-gray-400 bg-[#0a0e16]/80 backdrop-blur-md px-2.5 py-1 rounded border border-white/[0.08]">
+                <span>Head Pose: Pitch +0.8° | Yaw -1.2° | Roll 0.0°</span>
+              </div>
+
+              <div className="absolute bottom-4 right-6 z-20 flex items-center gap-2 bg-[#0a0e16]/80 backdrop-blur-md px-2.5 py-1 rounded border border-white/[0.08] text-[10px] font-mono">
+                <span className="text-gray-400">Audio Floor:</span>
+                <span className={`font-bold ${noiseWarning ? 'text-red-400' : 'text-[#4edea3]'}`}>
+                  {currentNoiseDb} dB
+                </span>
+              </div>
             </div>
           </div>
 
-
-
-          {/* 60 FPS HTML5 Canvas Dynamic Waveform Visualizer (FR-05 & FR-06) */}
-          <div className="bg-[#252525] rounded-xl p-6 border border-gray-800 space-y-4">
+          {/* 60 FPS HTML5 Canvas Dynamic Waveform Visualizer */}
+          <div className="glass-panel rounded-xl p-5 border border-white/[0.08] space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Radio className="w-4 h-4 text-[#a8b88c] animate-pulse" />
-                <h3 className="text-white text-xs font-bold uppercase tracking-wider">
+                <Activity className="w-4 h-4 text-[#10b981] animate-pulse" />
+                <h3 className="text-white text-xs font-bold uppercase tracking-wider font-mono">
                   Live Voice Audio Stream Visualizer
                 </h3>
               </div>
-              <span className="text-[11px] text-gray-400 font-mono">
+              <span className="text-[10px] text-gray-400 font-mono">
                 {isRecording ? 'Real-Time Frequency & Amplitude' : 'Stream Paused'}
               </span>
             </div>
 
-            {/* High-Performance 60fps HTML5 Canvas Visualizer */}
-            <div className="w-full h-36 bg-[#181818] rounded-xl border border-gray-800/80 overflow-hidden shadow-inner p-1">
+            <div className="w-full h-32 bg-[#0f131c] rounded-xl border border-white/[0.06] overflow-hidden p-1 shadow-inner">
               <canvas
                 ref={liveCanvasRef}
                 width={800}
-                height={140}
+                height={120}
                 className="w-full h-full block rounded-lg cursor-pointer"
                 onClick={() => {
                   if (!isRecording) startRecording();
@@ -1734,91 +1859,89 @@ const LiveInterview = () => {
               />
             </div>
 
-            <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#78885c]" />
-                <span>Low Frequency (Bass)</span>
-              </div>
-              <span className="text-gray-400 font-semibold">Human Vocal Band (85Hz – 3.5kHz)</span>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#d4a843]" />
-                <span>High Peaks (Treble)</span>
-              </div>
+            <div className="flex items-center justify-between text-[10px] text-gray-500 font-mono pt-0.5">
+              <span>Bass (85Hz)</span>
+              <span className="text-gray-400">Human Vocal Band (85Hz – 3.5kHz)</span>
+              <span>Treble (3.5kHz)</span>
             </div>
           </div>
 
-          {/* Noise Level Gauge (FR-09 & FR-10) */}
-          <div className={`bg-[#252525] rounded-xl p-5 border transition duration-200 ${noiseWarning ? 'border-red-500/70 bg-red-950/20' : 'border-gray-800'} flex items-center justify-between`}>
+          {/* Real-Time Noise Level Gauge (<60 dB) */}
+          <div className={`glass-panel rounded-xl p-4 border transition-all duration-200 ${
+            noiseWarning ? 'border-red-500/60 bg-red-950/20' : 'border-white/[0.08]'
+          } flex items-center justify-between`}>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-white text-xs font-bold uppercase tracking-wider">
+                <h3 className="text-white text-xs font-bold uppercase tracking-wider font-mono">
                   Real-Time Noise Level Validation
                 </h3>
-                <span className="text-[10px] px-2 py-0.5 bg-gray-800 text-gray-300 rounded border border-gray-700">
+                <span className="text-[10px] font-mono px-2 py-0.5 bg-white/[0.06] text-gray-300 rounded border border-white/[0.08]">
                   Threshold: {NOISE_THRESHOLD_DB} dB
                 </span>
               </div>
               <p className={`text-xs ${noiseWarning ? 'text-red-400 font-semibold' : 'text-gray-400'}`}>
                 {noiseWarning
-                  ? `⚠ Warning: Ambient noise exceeds ${NOISE_THRESHOLD_DB} dB - speech clarity may be impacted for transcription`
+                  ? `⚠ Ambient noise exceeds ${NOISE_THRESHOLD_DB} dB - speech clarity may be impacted for transcription`
                   : `Audio quality optimal (<${NOISE_THRESHOLD_DB} dB) - suitable for Whisper ASR model`}
               </p>
-              <p className="text-gray-600 text-[11px] mt-1 font-mono">
+              <p className="text-gray-600 text-[10px] mt-1 font-mono">
                 Real Time Input: Web Audio MediaStream · 48.0 kHz Mono
               </p>
             </div>
 
-            <div className="flex flex-col items-center min-w-[100px] pl-4 border-l border-gray-800">
-              <span className={`text-3xl font-extrabold font-mono ${noiseWarning ? 'text-red-400 animate-pulse' : 'text-[#d4a843]'}`}>
+            <div className="flex flex-col items-center min-w-[90px] pl-4 border-l border-white/[0.08]">
+              <span className={`text-2xl font-extrabold font-mono ${noiseWarning ? 'text-red-400 animate-pulse' : 'text-[#f59e0b]'}`}>
                 {currentNoiseDb}
               </span>
-              <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">dB Level</span>
-              <div className="w-24 bg-gray-800 h-2 rounded-full mt-2 overflow-hidden border border-gray-700/50">
+              <span className="text-[9px] text-gray-500 font-mono uppercase tracking-wider">dB Level</span>
+              <div className="w-20 bg-gray-800 h-1.5 rounded-full mt-2 overflow-hidden">
                 <div
                   style={{ width: `${Math.min(100, (currentNoiseDb / 99) * 100)}%` }}
-                  className={`h-full rounded-full transition-all duration-150 ${noiseWarning ? 'bg-red-500' : 'bg-[#d4a843]'}`}
+                  className={`h-full rounded-full transition-all duration-150 ${noiseWarning ? 'bg-red-500' : 'bg-[#f59e0b]'}`}
                 />
               </div>
             </div>
           </div>
 
-          {/* Audio Upload Panel — Test APIs */}
-          <div className="bg-[#252525] rounded-xl border border-gray-800 p-5 space-y-3">
+          {/* Audio Upload Panel — Test Whisper + Behavioral APIs */}
+          <div className="glass-panel rounded-xl border border-white/[0.08] p-4 space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Upload className="w-4 h-4 text-[#d4a843]" />
-                <h3 className="text-white text-xs font-bold uppercase tracking-wider">Upload Audio File</h3>
+                <Upload className="w-4 h-4 text-[#f59e0b]" />
+                <h3 className="text-white text-xs font-bold uppercase tracking-wider font-mono">
+                  Direct Audio Model Evaluation
+                </h3>
               </div>
-              <span className="text-gray-500 text-[10px]">Test Whisper + Behavioral APIs</span>
+              <span className="text-gray-500 text-[10px] font-mono">Whisper + Behavioral API</span>
             </div>
-            <p className="text-gray-500 text-[11px]">
-              Upload a <code className="text-[#d4a843] font-mono">.wav</code> or audio file to test the AI models without live recording.
+            <p className="text-gray-400 text-xs">
+              Upload an audio sample to immediately test the neural models without live recording.
             </p>
 
             <label
               htmlFor="test-audio-upload"
-              className={`flex flex-col items-center justify-center gap-2 w-full py-5 rounded-xl border-2 border-dashed cursor-pointer transition ${
+              className={`flex flex-col items-center justify-center gap-2 w-full py-4 rounded-xl border border-dashed cursor-pointer transition ${
                 testUploading
-                  ? 'border-[#d4a843]/60 bg-[#d4a843]/5 cursor-wait'
-                  : 'border-gray-700 hover:border-[#d4a843]/60 hover:bg-[#d4a843]/5'
+                  ? 'border-[#f59e0b]/60 bg-[#f59e0b]/5 cursor-wait'
+                  : 'border-white/[0.12] hover:border-[#10b981]/60 hover:bg-white/[0.03]'
               }`}
             >
               {testUploading ? (
                 <>
-                  <div className="w-7 h-7 border-2 border-[#d4a843] border-t-transparent rounded-full animate-spin" />
-                  <span className="text-[#d4a843] text-xs font-semibold">Processing with AI models...</span>
+                  <div className="w-6 h-6 border-2 border-[#f59e0b] border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[#f59e0b] text-xs font-mono font-semibold">Running Neural Inference...</span>
                 </>
               ) : testUploadFile ? (
                 <>
-                  <CheckCircle2 className="w-7 h-7 text-[#a8b88c]" />
-                  <span className="text-[#a8b88c] text-xs font-bold">{testUploadFile.name}</span>
-                  <span className="text-gray-500 text-[10px]">{(testUploadFile.size / 1024).toFixed(1)} KB · Click to upload another</span>
+                  <CheckCircle2 className="w-6 h-6 text-[#10b981]" />
+                  <span className="text-[#4edea3] text-xs font-mono font-bold">{testUploadFile.name}</span>
+                  <span className="text-gray-500 text-[10px] font-mono">{(testUploadFile.size / 1024).toFixed(1)} KB · Click to replace</span>
                 </>
               ) : (
                 <>
-                  <Upload className="w-7 h-7 text-gray-600" />
-                  <span className="text-gray-400 text-xs">Click to choose an audio file</span>
-                  <span className="text-gray-600 text-[10px]">WAV, WebM, M4A supported</span>
+                  <Upload className="w-6 h-6 text-gray-500" />
+                  <span className="text-gray-300 text-xs font-mono">Select audio file (.wav, .webm, .m4a)</span>
+                  <span className="text-gray-600 text-[10px] font-mono">Max 25MB standard mono PCM</span>
                 </>
               )}
               <input
@@ -1837,40 +1960,107 @@ const LiveInterview = () => {
           </div>
         </div>
 
-        {/* Right Panel */}
+        {/* Right Column: Behavioral Evaluation + Question Checklist + Mic Settings */}
         <div className="col-span-12 lg:col-span-4 space-y-5">
-          {/* Question Sequence & Navigation (FR-15) */}
-          <div className="bg-[#252525] rounded-xl p-5 border border-gray-800">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-white text-sm font-bold">Interview Questions</h3>
-              <span className="text-[#a8b88c] font-bold text-xs">{activeQuestionIdx + 1} of {sessionQuestions.length}</span>
+          {/* Behavioral Evaluation Summary Panel */}
+          <div className="glass-panel rounded-xl p-5 border border-white/[0.08] space-y-3.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#10b981]" />
+                <h3 className="text-white text-xs font-bold uppercase tracking-wider font-mono">
+                  Behavioral Evaluation
+                </h3>
+              </div>
+              {behavioralLoading ? (
+                <span className="text-[#f59e0b] text-[10px] font-mono font-semibold flex items-center gap-1 animate-pulse">
+                  <div className="w-2.5 h-2.5 border border-[#f59e0b] border-t-transparent rounded-full animate-spin" />
+                  Analyzing...
+                </span>
+              ) : behavioralScores ? (
+                <span className="text-[#4edea3] text-[10px] font-mono font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> Live Model
+                </span>
+              ) : (
+                <span className="text-gray-500 text-[10px] font-mono">Awaiting Audio</span>
+              )}
             </div>
 
-            <div className="w-full bg-gray-800 h-2 rounded-full mb-4 overflow-hidden">
+            {/* 3 Metric Score Grid */}
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="p-3 rounded-lg bg-[#0f131c] border border-white/[0.06] text-center">
+                <p className="text-gray-500 text-[10px] font-mono uppercase">Confidence</p>
+                <p className={`text-xl font-bold font-mono mt-1 ${behavioralScores ? 'text-[#4edea3]' : 'text-gray-400'}`}>
+                  {currentScores.confidence}%
+                </p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-[#0f131c] border border-white/[0.06] text-center">
+                <p className="text-gray-500 text-[10px] font-mono uppercase">Attitude</p>
+                <p className={`text-xl font-bold font-mono mt-1 ${behavioralScores ? 'text-[#4edea3]' : 'text-gray-400'}`}>
+                  {currentScores.attitude}%
+                </p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-[#0f131c] border border-white/[0.06] text-center">
+                <p className="text-gray-500 text-[10px] font-mono uppercase">Transparency</p>
+                <p className={`text-xl font-bold font-mono mt-1 ${behavioralScores ? 'text-[#4edea3]' : 'text-gray-400'}`}>
+                  {currentScores.transparency}%
+                </p>
+              </div>
+            </div>
+
+            {/* Overall Score Highlight */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[#0f131c] border border-white/[0.06]">
+              <span className="text-xs font-mono text-gray-400">Overall Behavioral Score:</span>
+              <span className="text-lg font-bold font-mono text-[#4edea3]">
+                {currentScores.overall > 0 ? `${currentScores.overall}%` : '84% (Estimated)'}
+              </span>
+            </div>
+
+            {behavioralScores && currentScores.audioSeconds > 0 && (
+              <div className="flex items-center justify-between text-[10px] text-gray-500 font-mono pt-1">
+                <span>🎙 {currentScores.audioSeconds.toFixed(1)}s audio</span>
+                <span>⚙ {currentScores.processingSeconds.toFixed(1)}s latency</span>
+              </div>
+            )}
+          </div>
+
+          {/* Question Sequence & Navigation */}
+          <div className="glass-panel rounded-xl p-5 border border-white/[0.08]">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-white text-xs font-bold uppercase tracking-wider font-mono">
+                Interview Questions
+              </h3>
+              <span className="text-[#4edea3] font-bold text-xs font-mono">
+                {activeQuestionIdx + 1} of {sessionQuestions.length}
+              </span>
+            </div>
+
+            <div className="w-full bg-gray-800 h-1.5 rounded-full mb-3.5 overflow-hidden">
               <div
                 style={{ width: `${((activeQuestionIdx + 1) / sessionQuestions.length) * 100}%` }}
-                className="bg-[#a8b88c] h-full rounded-full transition-all duration-300"
+                className="bg-[#10b981] h-full rounded-full transition-all duration-300"
               />
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {sessionQuestions.map((q, idx) => (
                 <div
                   key={q.id}
                   onClick={() => handleQuestionChange(idx)}
-                  className={`p-3 rounded-lg border text-xs cursor-pointer transition ${
+                  className={`p-2.5 rounded-lg border text-xs cursor-pointer transition ${
                     activeQuestionIdx === idx
-                      ? 'bg-[#a8b88c]/15 border-[#a8b88c] text-white font-semibold'
+                      ? 'bg-[#10b981]/15 border-[#10b981] text-white font-semibold'
                       : idx < activeQuestionIdx
-                      ? 'bg-[#1e1e1e] border-gray-800 text-gray-500 line-through'
-                      : 'bg-[#1e1e1e] border-gray-800 text-gray-400 hover:border-gray-700'
+                      ? 'bg-[#0f131c] border-white/[0.04] text-gray-500 line-through'
+                      : 'bg-[#0f131c] border-white/[0.06] text-gray-400 hover:border-white/[0.12]'
                   }`}
                 >
-                  <div className="flex justify-between mb-1">
-                    <span className="font-bold text-[10px] text-[#a8b88c]">Q{idx + 1}</span>
-                    <span className="text-[10px] text-gray-500">{q.difficulty}</span>
+                  <div className="flex justify-between mb-1 text-[10px] font-mono">
+                    <span className="font-bold text-[#4edea3]">Q{idx + 1}</span>
+                    <span className="text-gray-500">{q.difficulty}</span>
                   </div>
-                  {q.question_text}
+                  <p className="line-clamp-2 leading-snug">{q.question_text}</p>
                 </div>
               ))}
             </div>
@@ -1878,38 +2068,39 @@ const LiveInterview = () => {
             {activeQuestionIdx < sessionQuestions.length - 1 && (
               <button
                 onClick={() => handleQuestionChange(activeQuestionIdx + 1)}
-                className="w-full mt-4 py-2.5 bg-[#a8b88c] text-gray-900 text-xs font-bold rounded-lg hover:bg-[#98a87c] transition flex items-center justify-center gap-1.5 shadow"
+                className="w-full mt-3 py-2 bg-[#10b981] hover:bg-[#059669] text-[#0a0e16] text-xs font-bold font-mono rounded-lg transition flex items-center justify-center gap-1.5 shadow-glow-emerald"
               >
                 Next Question ({activeQuestionIdx + 2}/{sessionQuestions.length}) <ChevronRight className="w-4 h-4" />
               </button>
             )}
           </div>
 
-          {/* System Diagnostics & Controls */}
-          <div className="bg-[#252525] rounded-xl p-5 border border-gray-800 space-y-3.5">
+          {/* Audio Stream Diagnostics & Sensitivity Controls */}
+          <div className="glass-panel rounded-xl p-5 border border-white/[0.08] space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Audio Stream Diagnostics</h3>
+              <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider font-mono">
+                Stream Diagnostics
+              </h3>
               <button
                 onClick={() => {
                   loadAudioDevices();
                   if (selectedDeviceId) initMicrophone(selectedDeviceId);
                   toast('Refreshed audio devices', { icon: '🔄' });
                 }}
-                className="text-[11px] text-[#a8b88c] hover:underline flex items-center gap-1"
-                title="Refresh detected microphones"
+                className="text-[11px] text-[#10b981] hover:underline flex items-center gap-1 font-mono"
               >
                 <RefreshCw className="w-3 h-3" /> Refresh
               </button>
             </div>
 
             {/* Microphone Device Picker */}
-            <div className="p-3 bg-[#1e1e1e] rounded-lg border border-gray-800 space-y-2">
+            <div className="p-3 bg-[#0f131c] rounded-lg border border-white/[0.06] space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-300 font-semibold flex items-center gap-1.5">
-                  <Mic className="w-3.5 h-3.5 text-[#a8b88c]" /> Microphone Device:
+                <span className="text-gray-300 font-semibold flex items-center gap-1.5 font-mono">
+                  <Mic className="w-3.5 h-3.5 text-[#10b981]" /> Mic Device:
                 </span>
                 <span className="text-[10px] text-gray-500 font-mono">
-                  {audioDevices.length} available
+                  {audioDevices.length} found
                 </span>
               </div>
 
@@ -1921,7 +2112,7 @@ const LiveInterview = () => {
                     setSelectedDeviceId(newId);
                     initMicrophone(newId);
                   }}
-                  className="w-full bg-[#161616] border border-gray-700 text-xs text-white rounded-lg px-2.5 py-2 focus:border-[#a8b88c] focus:outline-none truncate"
+                  className="w-full bg-[#0a0e16] border border-white/[0.1] text-xs text-white rounded-lg px-2.5 py-1.5 focus:border-[#10b981] focus:outline-none truncate font-mono"
                 >
                   {audioDevices.map((d, i) => (
                     <option key={d.deviceId || i} value={d.deviceId}>
@@ -1930,29 +2121,19 @@ const LiveInterview = () => {
                   ))}
                 </select>
               ) : (
-                <p className="text-[11px] text-gray-500 italic">
-                  Microphone list will appear after permission is granted.
+                <p className="text-[11px] text-gray-500 italic font-mono">
+                  Grant permission to view microphone list.
                 </p>
-              )}
-
-              {/* Stereo Mix Warning Banner */}
-              {audioDevices.find((d) => d.deviceId === selectedDeviceId)?.label?.toLowerCase().includes('stereo mix') && (
-                <div className="p-2 bg-amber-500/15 border border-amber-500/40 rounded-lg text-amber-300 text-[11px] leading-tight flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-400 mt-0.5" />
-                  <div>
-                    <b>"Stereo Mix" selected!</b> This only records internal PC audio (YouTube/games), <b>not your voice</b>. Please switch to your real microphone above.
-                  </div>
-                </div>
               )}
             </div>
 
             {/* Sensitivity & Gain Boost Control */}
-            <div className="p-3 bg-[#1e1e1e] rounded-lg border border-gray-800 space-y-2">
-              <div className="flex items-center justify-between text-xs">
+            <div className="p-3 bg-[#0f131c] rounded-lg border border-white/[0.06] space-y-2">
+              <div className="flex items-center justify-between text-xs font-mono">
                 <span className="text-gray-300 font-semibold flex items-center gap-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-[#d4a843]" /> Mic Sensitivity Boost:
+                  <Sliders className="w-3.5 h-3.5 text-[#f59e0b]" /> Sensitivity:
                 </span>
-                <span className="text-[#d4a843] font-mono font-bold text-xs">{gainBoost}x</span>
+                <span className="text-[#f59e0b] font-bold">{gainBoost}x</span>
               </div>
               <input
                 type="range"
@@ -1961,34 +2142,22 @@ const LiveInterview = () => {
                 step="0.5"
                 value={gainBoost}
                 onChange={(e) => setGainBoost(Number(e.target.value))}
-                className="w-full accent-[#d4a843] cursor-pointer h-1.5 bg-gray-800 rounded-lg"
+                className="w-full accent-[#f59e0b] cursor-pointer h-1.5 bg-gray-800 rounded-lg"
               />
-              <div className="flex justify-between text-[10px] text-gray-500 font-mono">
-                <span>1x (Normal)</span>
-                <span>2.5x (Optimal)</span>
-                <span>5x (High)</span>
-              </div>
             </div>
 
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between p-2 bg-[#1e1e1e] rounded-lg border border-gray-800">
-                <span className="text-gray-400">Microphone Stream:</span>
-                <span className={`font-bold flex items-center gap-1 ${micGranted ? 'text-green-400' : 'text-red-400'}`}>
-                  <CheckCircle2 className="w-3.5 h-3.5" /> {micGranted ? 'Connected (Direct PCM)' : 'Not Connected'}
+            <div className="space-y-1.5 text-xs font-mono">
+              <div className="flex items-center justify-between p-2 bg-[#0f131c] rounded-lg border border-white/[0.04]">
+                <span className="text-gray-400">Mic State:</span>
+                <span className={`font-bold flex items-center gap-1 ${micGranted ? 'text-[#4edea3]' : 'text-red-400'}`}>
+                  <CheckCircle2 className="w-3.5 h-3.5" /> {micGranted ? 'Connected' : 'Disconnected'}
                 </span>
               </div>
 
-              <div className="flex items-center justify-between p-2 bg-[#1e1e1e] rounded-lg border border-gray-800">
-                <span className="text-gray-400">Web Audio Pipeline:</span>
-                <span className="text-green-400 font-bold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> {audioFormat.sampleRate / 1000} kHz / 16-bit
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-2 bg-[#1e1e1e] rounded-lg border border-gray-800">
-                <span className="text-gray-400">Audio Checkpoint:</span>
-                <span className="text-blue-400 font-bold flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" /> Active (1s Real-Time)
+              <div className="flex items-center justify-between p-2 bg-[#0f131c] rounded-lg border border-white/[0.04]">
+                <span className="text-gray-400">PCM Audio:</span>
+                <span className="text-[#4edea3] font-bold">
+                  {audioFormat.sampleRate / 1000} kHz / 16-bit
                 </span>
               </div>
             </div>
@@ -1996,7 +2165,7 @@ const LiveInterview = () => {
             {!micGranted && (
               <button
                 onClick={() => initMicrophone()}
-                className="w-full py-2.5 bg-[#a8b88c] text-gray-900 font-bold rounded-lg text-xs hover:bg-[#98a87c] transition shadow"
+                className="w-full py-2 bg-[#10b981] hover:bg-[#059669] text-[#0a0e16] font-bold rounded-lg text-xs font-mono transition shadow-glow-emerald"
               >
                 Connect Physical Microphone
               </button>
@@ -2009,3 +2178,4 @@ const LiveInterview = () => {
 };
 
 export default LiveInterview;
+

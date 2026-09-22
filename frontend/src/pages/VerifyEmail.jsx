@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { Shield, CheckCircle2, AlertCircle, Mail, ArrowRight, RefreshCw } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const VerifyEmail = () => {
@@ -48,11 +49,11 @@ const VerifyEmail = () => {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sage mx-auto mb-4"></div>
-          <h2 className="text-gray-800 font-semibold mb-2">Verifying Your Email</h2>
-          <p className="text-gray-600">Please wait a moment...</p>
+      <div className="min-h-screen bg-[#0A0E16] flex items-center justify-center p-4">
+        <div className="glass-panel rounded-3xl border border-white/10 p-8 text-center max-w-sm w-full shadow-2xl">
+          <RefreshCw className="w-10 h-10 text-emerald-400 animate-spin mx-auto mb-4" />
+          <h2 className="text-white text-lg font-bold font-display mb-1">Verifying Credentials</h2>
+          <p className="text-gray-400 text-xs font-mono">Querying cryptographic authentication cluster...</p>
         </div>
       </div>
     );
@@ -60,20 +61,22 @@ const VerifyEmail = () => {
 
   if (status === 'success') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full text-center">
-          <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-sage rounded-full flex items-center justify-center">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
+      <div className="min-h-screen bg-[#0A0E16] flex items-center justify-center p-4">
+        <div className="glass-panel rounded-3xl border border-white/10 p-8 text-center max-w-md w-full shadow-2xl space-y-4">
+          <div className="w-14 h-14 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl flex items-center justify-center text-emerald-400 mx-auto">
+            <CheckCircle2 className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Email Verified!</h2>
-          <p className="text-gray-600 mb-6">Your email has been successfully verified. You can now log in to your account.</p>
-          <p className="text-sm text-gray-500 mb-6">Redirecting to login in a few seconds...</p>
-          <Link to="/login" className="inline-block px-8 py-3 bg-sage hover:bg-sage/90 text-white font-semibold rounded-lg transition">
-            Go to Login
+          <h2 className="text-2xl font-bold text-white font-display">Email Verified!</h2>
+          <p className="text-gray-300 text-xs leading-relaxed font-mono">
+            Your operator email has been cryptographically validated. You can now access the Aegis proctoring console.
+          </p>
+          <p className="text-xs text-gray-500 font-mono">Redirecting to login in 3 seconds...</p>
+          <Link
+            to="/login"
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-surface font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20 font-display"
+          >
+            <span>Proceed to Login</span>
+            <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </div>
@@ -82,19 +85,18 @@ const VerifyEmail = () => {
 
   if (status === 'error') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full text-center">
-          <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </div>
+      <div className="min-h-screen bg-[#0A0E16] flex items-center justify-center p-4">
+        <div className="glass-panel rounded-3xl border border-white/10 p-8 text-center max-w-md w-full shadow-2xl space-y-4">
+          <div className="w-14 h-14 bg-rose-500/20 border border-rose-500/40 rounded-2xl flex items-center justify-center text-rose-400 mx-auto">
+            <AlertCircle className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Verification Failed</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <Link to="/signup" className="inline-block px-8 py-3 bg-sage hover:bg-sage/90 text-white font-semibold rounded-lg transition">
-            Try Again
+          <h2 className="text-2xl font-bold text-white font-display">Verification Failed</h2>
+          <p className="text-rose-400 text-xs font-mono">{error}</p>
+          <Link
+            to="/signup"
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-surface-card hover:bg-surface-elevated text-gray-200 border border-white/10 text-xs rounded-xl transition font-mono"
+          >
+            Try Registration Again
           </Link>
         </div>
       </div>
@@ -102,17 +104,26 @@ const VerifyEmail = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Verify Your Email</h2>
-          <p className="text-gray-600 mb-6">
-            {email
-              ? `We've sent a verification link to ${email}. Check your inbox and click the link to verify your account.`
-              : 'Check your inbox and click the verification link to activate your account.'}
-          </p>
-          <Link to="/login" className="inline-block px-8 py-3 bg-sage hover:bg-sage/90 text-white font-semibold rounded-lg transition">
-            Back to Login
+    <div className="min-h-screen bg-[#0A0E16] flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute -top-40 -right-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="glass-panel rounded-3xl border border-white/10 p-8 sm:p-10 text-center max-w-md w-full shadow-2xl space-y-5 relative z-10">
+        <div className="w-14 h-14 bg-emerald-500/15 border border-emerald-500/30 rounded-2xl flex items-center justify-center text-emerald-400 mx-auto">
+          <Mail className="w-7 h-7" />
+        </div>
+        <h2 className="text-2xl font-bold text-white font-display">Verify Your Identity</h2>
+        <p className="text-gray-300 text-xs font-mono leading-relaxed">
+          {email
+            ? `We have dispatched a verification link to ${email}. Check your inbox and click the link to activate your proctor credentials.`
+            : 'Check your inbox and click the verification link to activate your evaluator account.'}
+        </p>
+        <div className="pt-2">
+          <Link
+            to="/login"
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-surface font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20 font-display"
+          >
+            <span>Back to Console Login</span>
+            <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </div>

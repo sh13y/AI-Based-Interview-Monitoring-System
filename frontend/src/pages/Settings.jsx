@@ -6,7 +6,7 @@
 // ==============================================================================
 
 import React, { useState } from 'react';
-import { User, Lock, Bell, Shield, Save } from 'lucide-react';
+import { User, Lock, Bell, Shield, Save, Key, CheckCircle2, Sliders } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured, writeAuditLog } from '../lib/supabase';
 import toast, { Toaster } from 'react-hot-toast';
@@ -33,7 +33,6 @@ const Settings = () => {
   const handleSaveProfile = async (e) => {
     e.preventDefault();
 
-    // Validate mandatory fields
     if (!profileData.firstName.trim() || !profileData.lastName.trim() || !profileData.email.trim()) {
       toast.error('First name, last name, and email are mandatory fields.');
       return;
@@ -43,7 +42,6 @@ const Settings = () => {
 
     try {
       if (isSupabaseConfigured() && user?.id) {
-        // Update the public.users table
         const { error } = await supabase
           .from('users')
           .update({
@@ -59,7 +57,6 @@ const Settings = () => {
           return;
         }
 
-        // Also update auth metadata
         await supabase.auth.updateUser({
           data: {
             first_name: profileData.firstName,
@@ -68,7 +65,6 @@ const Settings = () => {
         });
       }
 
-      // Update localStorage for demo/fallback mode
       const updatedUser = {
         ...user,
         first_name: profileData.firstName,
@@ -146,27 +142,36 @@ const Settings = () => {
   };
 
   return (
-    <div>
+    <div className="space-y-6">
       <Toaster position="top-right" />
-      <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
+
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white font-display tracking-tight">
+          System & Account Preferences
+        </h1>
+        <p className="text-gray-400 text-xs mt-1">
+          Manage proctor identity, cryptographic keys, notifications, and 30-day compliance retention rules
+        </p>
+      </div>
 
       <div className="grid grid-cols-12 gap-6">
-        {/* Navigation */}
+        {/* Navigation Sidebar */}
         <div className="col-span-12 md:col-span-3">
-          <div className="bg-[#252525] rounded-xl p-3 border border-gray-800 space-y-1">
+          <div className="glass-panel rounded-2xl p-2 border border-white/10 space-y-1 shadow-xl">
             {[
-              { id: 'profile', label: 'Profile Information', icon: User },
-              { id: 'security', label: 'Account Security', icon: Lock },
+              { id: 'profile', label: 'Proctor Profile', icon: User },
+              { id: 'security', label: 'Security & Keys', icon: Lock },
               { id: 'notifications', label: 'Notifications', icon: Bell },
               { id: 'privacy', label: 'Privacy & Retention', icon: Shield },
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition ${
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
                   activeTab === id
-                    ? 'bg-[#a8b88c] text-gray-900'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-[#2a2a2a]'
+                    ? 'bg-emerald-500 text-surface font-bold shadow-md shadow-emerald-500/20'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -176,54 +181,59 @@ const Settings = () => {
           </div>
         </div>
 
-        {/* Form area */}
+        {/* Tab Content Area */}
         <div className="col-span-12 md:col-span-9">
-          <div className="bg-[#252525] rounded-xl p-6 border border-gray-800">
+          <div className="glass-panel rounded-2xl p-6 sm:p-8 border border-white/10 shadow-2xl">
 
+            {/* Profile Tab */}
             {activeTab === 'profile' && (
-              <form onSubmit={handleSaveProfile} className="space-y-4">
-                <h2 className="text-white text-base font-bold mb-4">Profile Information</h2>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-gray-400 text-xs font-medium mb-1">First Name</label>
+              <form onSubmit={handleSaveProfile} className="space-y-5">
+                <div className="border-b border-white/10 pb-3">
+                  <h2 className="text-white text-base font-bold font-display">Proctor Profile Information</h2>
+                  <p className="text-gray-400 text-xs font-mono">Personal evaluation identity and verified organization details</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-gray-400 text-xs font-mono uppercase">First Name</label>
                     <input
                       type="text"
                       value={profileData.firstName}
                       onChange={(e) => setProfileData({ ...profileData, firstName: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-[#1e1e1e] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c]"
+                      className="w-full px-4 py-2.5 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 focus:outline-none focus:border-emerald-500/50 transition font-mono"
                       required
                     />
                   </div>
-                  <div>
-                    <label className="block text-gray-400 text-xs font-medium mb-1">Last Name</label>
+                  <div className="space-y-1.5">
+                    <label className="block text-gray-400 text-xs font-mono uppercase">Last Name</label>
                     <input
                       type="text"
                       value={profileData.lastName}
                       onChange={(e) => setProfileData({ ...profileData, lastName: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-[#1e1e1e] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c]"
+                      className="w-full px-4 py-2.5 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 focus:outline-none focus:border-emerald-500/50 transition font-mono"
                       required
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-gray-400 text-xs font-medium mb-1">Email Address</label>
+                <div className="space-y-1.5">
+                  <label className="block text-gray-400 text-xs font-mono uppercase">Corporate Email Address</label>
                   <input
                     type="email"
                     value={profileData.email}
                     onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-[#1e1e1e] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c]"
+                    className="w-full px-4 py-2.5 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 focus:outline-none focus:border-emerald-500/50 transition font-mono"
                     required
                   />
                 </div>
 
-                <div>
-                  <label className="block text-gray-400 text-xs font-medium mb-1">Role</label>
+                <div className="space-y-1.5">
+                  <label className="block text-gray-400 text-xs font-mono uppercase">Assigned Security Role</label>
                   <input
                     type="text"
                     disabled
                     value={profileData.role}
-                    className="w-full px-4 py-2.5 bg-[#1a1a1a] border border-gray-800 rounded-lg text-sm text-gray-500 cursor-not-allowed"
+                    className="w-full px-4 py-2.5 bg-[#0A0E16]/50 border border-white/5 rounded-xl text-xs text-gray-500 cursor-not-allowed font-mono"
                   />
                 </div>
 
@@ -231,77 +241,90 @@ const Settings = () => {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-[#a8b88c] text-gray-900 font-semibold text-xs rounded-lg hover:bg-[#98a87c] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-surface font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
                   >
-                    <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Changes'}
+                    <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Profile Changes'}
                   </button>
                 </div>
               </form>
             )}
 
+            {/* Security Tab */}
             {activeTab === 'security' && (
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <h2 className="text-white text-base font-bold mb-4">Account Security</h2>
-                <div>
-                  <label className="block text-gray-400 text-xs font-medium mb-1">Current Password</label>
+              <form onSubmit={handleChangePassword} className="space-y-5">
+                <div className="border-b border-white/10 pb-3">
+                  <h2 className="text-white text-base font-bold font-display">Authentication & Master Credentials</h2>
+                  <p className="text-gray-400 text-xs font-mono">Rotate security password and invalidate previous active JWT sessions</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-gray-400 text-xs font-mono uppercase">Current Master Password</label>
                   <input
                     type="password"
-                    placeholder="••••••••"
+                    placeholder="••••••••••••"
                     value={securityData.currentPassword}
                     onChange={(e) => setSecurityData({ ...securityData, currentPassword: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-[#1e1e1e] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c]"
+                    className="w-full px-4 py-2.5 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 focus:outline-none focus:border-emerald-500/50 transition font-mono"
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-gray-400 text-xs font-medium mb-1">New Password</label>
+
+                <div className="space-y-1.5">
+                  <label className="block text-gray-400 text-xs font-mono uppercase">New Password</label>
                   <input
                     type="password"
-                    placeholder="••••••••"
+                    placeholder="••••••••••••"
                     value={securityData.newPassword}
                     onChange={(e) => setSecurityData({ ...securityData, newPassword: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-[#1e1e1e] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c]"
+                    className="w-full px-4 py-2.5 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 focus:outline-none focus:border-emerald-500/50 transition font-mono"
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-gray-400 text-xs font-medium mb-1">Confirm New Password</label>
+
+                <div className="space-y-1.5">
+                  <label className="block text-gray-400 text-xs font-mono uppercase">Confirm New Password</label>
                   <input
                     type="password"
-                    placeholder="••••••••"
+                    placeholder="••••••••••••"
                     value={securityData.confirmPassword}
                     onChange={(e) => setSecurityData({ ...securityData, confirmPassword: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-[#1e1e1e] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c]"
+                    className="w-full px-4 py-2.5 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 focus:outline-none focus:border-emerald-500/50 transition font-mono"
                     required
                   />
                 </div>
+
                 <div className="pt-4 flex justify-end">
                   <button
                     type="submit"
                     disabled={changingPassword}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-[#a8b88c] text-gray-900 font-semibold text-xs rounded-lg hover:bg-[#98a87c] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-surface font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
                   >
-                    <Save className="w-4 h-4" /> {changingPassword ? 'Updating...' : 'Update Password'}
+                    <Lock className="w-4 h-4" /> {changingPassword ? 'Updating...' : 'Update Password'}
                   </button>
                 </div>
               </form>
             )}
 
+            {/* Notifications Tab */}
             {activeTab === 'notifications' && (
-              <div className="space-y-4">
-                <h2 className="text-white text-base font-bold mb-4">Notification Preferences</h2>
+              <div className="space-y-5">
+                <div className="border-b border-white/10 pb-3">
+                  <h2 className="text-white text-base font-bold font-display">Telemetry Notification Dispatch</h2>
+                  <p className="text-gray-400 text-xs font-mono">Configure threshold triggers and proctor alert subscriptions</p>
+                </div>
+
                 <div className="space-y-3">
                   {[
-                    'Email notification on candidate evaluation complete',
-                    'Alert when environmental noise exceeds 60 dB threshold',
-                    'Weekly summary of interview metrics',
-                    'Automated 30-day data purge warning alerts',
+                    'Dispatched email alert upon candidate behavioral evaluation completion',
+                    'Auditory threshold violation when room noise exceeds 60 dB ceiling',
+                    'Real-time anomaly push alert on multi-face or gaze drift detection',
+                    'Automated 30-day compliance data purge warning notifications',
                   ].map((label, idx) => (
-                    <label key={idx} className="flex items-center gap-3 text-xs text-gray-300 cursor-pointer">
+                    <label key={idx} className="flex items-center gap-3 text-xs text-gray-300 cursor-pointer p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/30 transition">
                       <input
                         type="checkbox"
                         defaultChecked
-                        className="w-4 h-4 rounded bg-[#1e1e1e] border-gray-700 text-[#a8b88c] focus:ring-[#a8b88c]"
+                        className="w-4 h-4 rounded bg-[#0A0E16] border-white/20 text-emerald-500 focus:ring-0 cursor-pointer"
                       />
                       <span>{label}</span>
                     </label>
@@ -310,28 +333,37 @@ const Settings = () => {
               </div>
             )}
 
+            {/* Privacy Tab */}
             {activeTab === 'privacy' && (
-              <div className="space-y-4">
-                <h2 className="text-white text-base font-bold mb-4">Data Retention & Privacy Policy</h2>
-                <p className="text-gray-400 text-xs leading-relaxed">
-                  Modern Matrix strictly enforces an automated 30-day data purge policy for candidate biometric audio recordings and interview transcripts to ensure compliance with privacy regulations.
+              <div className="space-y-5">
+                <div className="border-b border-white/10 pb-3">
+                  <h2 className="text-white text-base font-bold font-display">Data Retention & Privacy Policy</h2>
+                  <p className="text-gray-400 text-xs font-mono">Automated 30-day biometric data purge standard</p>
+                </div>
+
+                <p className="text-gray-300 text-xs leading-relaxed">
+                  Modern Matrix strictly enforces an automated 30-day data purge policy for candidate biometric audio recordings, video frames, and interview transcripts to maintain full compliance with international privacy regulations.
                 </p>
-                <div className="p-4 bg-[#1e1e1e] rounded-xl border border-gray-800 space-y-2 text-xs text-gray-300">
-                  <div className="flex justify-between">
-                    <span>Auto-Purge Cycle:</span>
-                    <span className="text-[#a8b88c] font-semibold">Active (Every 30 Days)</span>
+
+                <div className="p-5 bg-[#0A0E16]/80 rounded-2xl border border-white/5 space-y-3 text-xs font-mono text-gray-300">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Purge Automation:</span>
+                    <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Active (30-Day TTL)
+                    </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Next Scheduled Purge:</span>
-                    <span className="text-gray-400">May 15, 2026 - 02:00 AM</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Next Scheduled Purge:</span>
+                    <span className="text-gray-300">May 15, 2026 - 02:00 UTC</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Encryption Standard:</span>
-                    <span className="text-gray-400">AES-256 (At Rest) & TLS 1.3 (In Transit)</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Storage Encryption:</span>
+                    <span className="text-emerald-400">AES-256-GCM (At Rest) & TLS 1.3 (Transit)</span>
                   </div>
                 </div>
               </div>
             )}
+
           </div>
         </div>
       </div>

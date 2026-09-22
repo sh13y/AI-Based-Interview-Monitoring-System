@@ -7,17 +7,20 @@
 // ==============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Trash2, Edit, Sliders, RefreshCw, Database } from 'lucide-react';
+import {
+  Plus, Search, Filter, Trash2, Edit, Sliders, RefreshCw, Database,
+  HelpCircle, Tag, Cpu, CheckCircle2, Sparkles, BookOpen
+} from 'lucide-react';
 import { dummyQuestions } from '../lib/dummyData';
 import AddQuestionModal from '../components/Modals/AddQuestionModal';
 import { supabase, isSupabaseConfigured, writeAuditLog } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
 
-const difficultyColors = {
-  Easy: 'bg-green-500/20 text-green-400 border-green-500/30',
-  Medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  Hard: 'bg-red-500/20 text-red-400 border-red-500/30',
+const difficultyBadges = {
+  Easy: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  Medium: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  Hard: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
 };
 
 const QuestionBank = () => {
@@ -47,10 +50,6 @@ const QuestionBank = () => {
     fetchQuestions();
   }, []);
 
-  /**
-   * [FR-04: View Questions]
-   * Loads question bank repository from Supabase PostgreSQL and merges with local storage
-   */
   const fetchQuestions = async () => {
     setLoading(true);
     let currentList = getStoredQuestions();
@@ -85,9 +84,6 @@ const QuestionBank = () => {
     setLoading(false);
   };
 
-  /**
-   * [FR-04: Add Question & Duplicate Validation]
-   */
   const handleAddQuestion = async (formData) => {
     const isDuplicate = questions.some(
       (q) => q.question_text.trim().toLowerCase() === formData.question_text.trim().toLowerCase()
@@ -109,12 +105,10 @@ const QuestionBank = () => {
       created_at: new Date().toISOString(),
     };
 
-    // 1. Immediately persist to state & local storage
     const updatedLocal = [newQuestion, ...questions.filter(q => q.id !== generatedId)];
     setQuestions(updatedLocal);
     localStorage.setItem('mm_question_bank_list', JSON.stringify(updatedLocal));
 
-    // 2. Dual-write to Supabase Cloud
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase.from('question_bank').insert([{
@@ -144,7 +138,6 @@ const QuestionBank = () => {
       toast.success('Question added successfully.');
     }
 
-    // 3. Write Audit Log (FR-21)
     await writeAuditLog({
       action: 'QUESTION_CREATED',
       entityType: 'question_bank',
@@ -156,9 +149,6 @@ const QuestionBank = () => {
     setShowAddModal(false);
   };
 
-  /**
-   * [FR-04: Update Question]
-   */
   const handleEditQuestion = async (formData) => {
     const isDuplicate = questions.some(
       (q) => q.id !== formData.id && q.question_text.trim().toLowerCase() === formData.question_text.trim().toLowerCase()
@@ -177,12 +167,10 @@ const QuestionBank = () => {
       weights: formData.weights,
     };
 
-    // 1. Immediately persist to state & local storage
     const updated = questions.map(q => q.id === formData.id ? { ...q, ...updatePayload } : q);
     setQuestions(updated);
     localStorage.setItem('mm_question_bank_list', JSON.stringify(updated));
 
-    // 2. Update Supabase Cloud
     if (isSupabaseConfigured()) {
       try {
         const { error } = await supabase
@@ -198,7 +186,6 @@ const QuestionBank = () => {
       }
     }
 
-    // 3. Write Audit Log (FR-21)
     await writeAuditLog({
       action: 'QUESTION_UPDATED',
       entityType: 'question_bank',
@@ -211,9 +198,6 @@ const QuestionBank = () => {
     toast.success('Question updated successfully.');
   };
 
-  /**
-   * [FR-02: RBAC Deletion & FR-04: Delete Question]
-   */
   const handleDeleteQuestion = async (id) => {
     if (user?.role !== 'Admin') {
       toast.error('Access Denied: Only System Administrators can delete questions.');
@@ -226,19 +210,16 @@ const QuestionBank = () => {
 
     const target = questions.find(q => q.id === id);
 
-    // 1. Update state & local storage
     const updated = questions.filter(q => q.id !== id);
     setQuestions(updated);
     localStorage.setItem('mm_question_bank_list', JSON.stringify(updated));
 
-    // 2. Delete from Supabase Cloud
     if (isSupabaseConfigured()) {
       try {
         await supabase.from('question_bank').delete().eq('id', id);
       } catch (_) {}
     }
 
-    // 3. Write Audit Log (FR-21)
     await writeAuditLog({
       action: 'QUESTION_DELETED',
       entityType: 'question_bank',
@@ -259,127 +240,141 @@ const QuestionBank = () => {
     return matchSearch && matchCategory && matchDifficulty;
   });
 
-  const categories = [...new Set(questions.map((q) => q.category))];
+  const categories = [...new Set(questions.map((q) => q.category).filter(Boolean))];
 
   return (
-    <div>
+    <div className="space-y-6">
       <Toaster position="top-right" />
-      
+
       {/* Header with Title and Database Status */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Question Bank</h1>
-          <p className="text-gray-400 text-xs mt-1">Manage technical and behavioral question repository with AI keyword scoring weights</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white font-display tracking-tight flex items-center gap-3">
+            <span>Adaptive Question Bank</span>
+            <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-normal">
+              {questions.length} Items
+            </span>
+          </h1>
+          <p className="text-gray-400 text-xs mt-1">
+            Standardized technical, algorithmic, and behavioral interview prompt repository with weighted AI scoring
+          </p>
         </div>
 
         {/* Database Status Badge */}
-        <div className="flex items-center gap-2 bg-[#252525] px-3.5 py-1.5 rounded-xl border border-gray-800 text-xs">
-          <Database className="w-3.5 h-3.5 text-[#a8b88c]" />
+        <div className="flex items-center gap-2 bg-[#181C24] px-4 py-2 rounded-xl border border-white/10 text-xs shadow-inner">
+          <Database className="w-4 h-4 text-emerald-400" />
           <span className="text-gray-300 font-medium">{dbStatus.message}</span>
-          <span className="w-2 h-2 rounded-full bg-[#a8b88c] animate-pulse" />
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-beacon" />
         </div>
       </div>
 
-      {/* [FR-04: Toolbar with Add & Search] */}
-      <div className="flex flex-wrap items-center gap-3 mb-5">
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#a8b88c] text-gray-900 rounded-lg text-sm font-semibold hover:bg-[#98a87c] transition"
-        >
-          <Plus className="w-4 h-4" /> Add Question
-        </button>
-        <button onClick={fetchQuestions} className="flex items-center gap-2 px-3 py-2 bg-[#2a2a2a] text-gray-400 rounded-lg text-sm border border-gray-700 hover:border-gray-600 transition">
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
-        </button>
-        <div className="flex-1"></div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-          <input
-            type="text"
-            placeholder="Search questions or keywords..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 pr-4 py-2.5 bg-[#2a2a2a] border border-gray-700 rounded-lg text-sm text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#a8b88c] w-64 transition"
-          />
+      {/* Toolbar with Add & Search */}
+      <div className="glass-panel p-4 rounded-2xl border border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5 w-full md:w-auto">
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-surface font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20"
+          >
+            <Plus className="w-4 h-4" /> Add Prompt
+          </button>
+          <button
+            onClick={fetchQuestions}
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-surface-card hover:bg-surface-elevated text-gray-300 rounded-xl text-xs border border-white/10 transition"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-end">
+          <div className="relative flex-1 sm:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search prompts or keywords..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 w-full sm:w-60 transition"
+            />
+          </div>
+
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="px-3 py-2 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-300 focus:outline-none focus:border-emerald-500/50 transition cursor-pointer"
+          >
+            <option>All Categories</option>
+            {categories.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+
+          <select
+            value={difficultyFilter}
+            onChange={(e) => setDifficultyFilter(e.target.value)}
+            className="px-3 py-2 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-300 focus:outline-none focus:border-emerald-500/50 transition cursor-pointer"
+          >
+            <option>All Difficulties</option>
+            <option>Easy</option>
+            <option>Medium</option>
+            <option>Hard</option>
+          </select>
         </div>
       </div>
 
-      {/* [FR-04: Difficulty & Category Filters] */}
-      <div className="flex items-center gap-3 mb-5">
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="px-3 py-2 bg-[#2a2a2a] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c] transition cursor-pointer"
-        >
-          <option>All Categories</option>
-          {categories.map((c) => (
-            <option key={c}>{c}</option>
-          ))}
-        </select>
-        <select
-          value={difficultyFilter}
-          onChange={(e) => setDifficultyFilter(e.target.value)}
-          className="px-3 py-2 bg-[#2a2a2a] border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[#a8b88c] transition cursor-pointer"
-        >
-          <option>All Difficulties</option>
-          <option>Easy</option>
-          <option>Medium</option>
-          <option>Hard</option>
-        </select>
-      </div>
-
-      {/* [FR-04: Questions Cards Grid] */}
+      {/* Questions Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredQuestions.map((q) => (
           <div
             key={q.id}
-            className="bg-[#252525] rounded-xl p-5 border border-gray-800/50 hover:border-gray-700 transition flex flex-col justify-between"
+            className="glass-panel rounded-2xl p-5 border border-white/10 hover:border-emerald-500/30 transition-all duration-200 flex flex-col justify-between group shadow-xl"
           >
             <div>
               <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="px-2.5 py-1 bg-[#2a2a2a] border border-gray-700 text-gray-300 rounded-md text-xs font-medium">
+                <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-gray-300 rounded-lg text-xs font-mono">
                   {q.category}
                 </span>
                 <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${difficultyColors[q.difficulty] || difficultyColors['Medium']}`}
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium border ${difficultyBadges[q.difficulty] || difficultyBadges['Medium']}`}
                 >
                   {q.difficulty}
                 </span>
               </div>
-              <p className="text-gray-200 text-sm font-medium mb-4">{q.question_text}</p>
+              <p className="text-white text-sm font-medium mb-4 leading-relaxed group-hover:text-emerald-200 transition-colors">
+                {q.question_text}
+              </p>
             </div>
 
             <div>
+              {/* Keywords */}
               <div className="flex flex-wrap items-center gap-1.5 mb-4">
                 {(q.keywords || []).map((kw, i) => (
                   <span
                     key={i}
-                    className="px-2 py-0.5 bg-[#3a3a3a] text-gray-400 rounded text-[11px]"
+                    className="px-2 py-0.5 bg-[#0A0E16] text-gray-400 border border-white/5 rounded-md text-[10px] font-mono"
                   >
-                    {kw}
+                    #{kw}
                   </span>
                 ))}
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-gray-800/50">
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <Sliders className="w-3.5 h-3.5 text-[#a8b88c]" />
-                  <span>AI Keyword Scoring: {q.ai_scoring_enabled ? 'Enabled' : 'Disabled'}</span>
+              {/* Card Footer */}
+              <div className="flex items-center justify-between pt-3 border-t border-white/10 text-xs font-mono">
+                <div className="flex items-center gap-1.5 text-gray-400">
+                  <Sliders className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>AI Semantic Scoring: {q.ai_scoring_enabled ? 'Active' : 'Off'}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  {/* [FR-04: Edit Question Action] */}
                   <button
                     onClick={() => setEditingQuestion(q)}
-                    className="p-1.5 text-gray-400 hover:text-[#d4a843] hover:bg-[#d4a843]/10 rounded transition"
+                    className="p-1.5 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition"
                     title="Edit Question"
                   >
                     <Edit className="w-4 h-4" />
                   </button>
-                  {/* [FR-02: Admin Delete Action] */}
                   {user?.role === 'Admin' && (
                     <button
                       onClick={() => handleDeleteQuestion(q.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-400 rounded transition"
+                      className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
                       title="Delete Question (Admin Only)"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -392,12 +387,11 @@ const QuestionBank = () => {
         ))}
       </div>
 
-      {/* [FR-04: Add Question Modal] */}
+      {/* Modals */}
       {showAddModal && (
         <AddQuestionModal onClose={() => setShowAddModal(false)} onSubmit={handleAddQuestion} />
       )}
 
-      {/* [FR-04: Edit Question Modal] */}
       {editingQuestion && (
         <AddQuestionModal
           onClose={() => setEditingQuestion(null)}

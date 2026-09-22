@@ -5,7 +5,7 @@
 // ==============================================================================
 
 import React, { useState, useRef } from 'react';
-import { X, Upload, CheckSquare, FileText, CheckCircle2, Trash2 } from 'lucide-react';
+import { X, Upload, CheckSquare, FileText, CheckCircle2, Trash2, UserPlus } from 'lucide-react';
 
 const AddCandidateModal = ({ onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
@@ -75,57 +75,60 @@ const AddCandidateModal = ({ onClose, onSubmit }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/65 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#1e1e1e] rounded-2xl border border-gray-800 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="glass-panel rounded-2xl border border-white/10 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-800">
-          <h2 className="text-white text-lg font-bold">Add Candidate</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 transition">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+          <div className="flex items-center gap-2.5">
+            <UserPlus className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-white text-base font-bold font-display">Provision New Candidate</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Full Name */}
-          <div>
-            <label className="block text-gray-300 text-sm font-medium mb-2">Full Name</label>
+          <div className="space-y-1.5">
+            <label className="block text-gray-300 text-xs font-mono uppercase tracking-wider">Candidate Full Name</label>
             <input
               type="text"
               value={formData.full_name}
               onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
               placeholder="e.g. Kasun Fernando"
-              className="w-full px-4 py-3 bg-[#2a2a2a] border border-gray-700 rounded-lg text-gray-300 text-sm placeholder-gray-500 focus:outline-none focus:border-[#a8b88c] transition"
+              className="w-full px-3.5 py-2.5 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 transition font-mono"
               required
             />
           </div>
 
           {/* Email */}
-          <div>
-            <label className="block text-gray-300 text-sm font-medium mb-2">Email Address</label>
+          <div className="space-y-1.5">
+            <label className="block text-gray-300 text-xs font-mono uppercase tracking-wider">Email Address</label>
             <input
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               placeholder="e.g. candidate@example.com"
-              className="w-full px-4 py-3 bg-[#2a2a2a] border border-gray-700 rounded-lg text-gray-300 text-sm placeholder-gray-500 focus:outline-none focus:border-[#a8b88c] transition"
+              className="w-full px-3.5 py-2.5 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 transition font-mono"
               required
             />
           </div>
 
           {/* Position & Keywords */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-gray-300 text-sm font-medium mb-2">Position</label>
+            <div className="space-y-1.5">
+              <label className="block text-gray-300 text-xs font-mono uppercase tracking-wider">Target Position</label>
               <select
                 value={formData.position}
                 onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                className="w-full px-4 py-3 bg-[#2a2a2a] border border-gray-700 rounded-lg text-gray-300 text-sm focus:outline-none focus:border-[#a8b88c] transition cursor-pointer appearance-none"
+                className="w-full px-3.5 py-2.5 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 focus:outline-none focus:border-emerald-500/50 transition cursor-pointer font-mono"
               >
                 {positions.map(p => <option key={p}>{p}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-gray-300 text-sm font-medium mb-2">Keyword Benchmark</label>
+            <div className="space-y-1.5">
+              <label className="block text-gray-300 text-xs font-mono uppercase tracking-wider">Competency Tag</label>
               <select
                 onChange={(e) => {
                   if (e.target.value && !formData.keywords.includes(e.target.value)) {
@@ -133,9 +136,9 @@ const AddCandidateModal = ({ onClose, onSubmit }) => {
                   }
                   e.target.value = '';
                 }}
-                className="w-full px-4 py-3 bg-[#2a2a2a] border border-gray-700 rounded-lg text-gray-300 text-sm focus:outline-none focus:border-[#a8b88c] transition cursor-pointer appearance-none"
+                className="w-full px-3.5 py-2.5 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 focus:outline-none focus:border-emerald-500/50 transition cursor-pointer font-mono"
               >
-                <option value="">Add keyword...</option>
+                <option value="">+ Add Tag</option>
                 {keywordOptions.filter(k => !formData.keywords.includes(k)).map(k => <option key={k}>{k}</option>)}
               </select>
             </div>
@@ -143,14 +146,14 @@ const AddCandidateModal = ({ onClose, onSubmit }) => {
 
           {/* Selected Keywords Badges */}
           {formData.keywords.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 p-2 bg-[#252525] rounded-lg border border-gray-800">
+            <div className="flex flex-wrap gap-1.5 p-2.5 bg-[#0A0E16] rounded-xl border border-white/5">
               {formData.keywords.map((kw, i) => (
-                <span key={i} className="px-2.5 py-1 bg-[#3a3a3a] text-gray-300 text-xs rounded-md flex items-center gap-1.5">
+                <span key={i} className="px-2.5 py-1 bg-white/5 text-gray-300 text-[11px] font-mono rounded-lg flex items-center gap-1.5 border border-white/10">
                   {kw}
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, keywords: formData.keywords.filter(k => k !== kw) })}
-                    className="text-gray-500 hover:text-white"
+                    className="text-gray-400 hover:text-white"
                   >
                     ×
                   </button>
@@ -160,9 +163,9 @@ const AddCandidateModal = ({ onClose, onSubmit }) => {
           )}
 
           {/* Real Resume / CV File Upload */}
-          <div>
-            <label className="block text-gray-300 text-sm font-medium mb-2">
-              Candidate Resume / CV File (.pdf, .docx, .txt)
+          <div className="space-y-1.5">
+            <label className="block text-gray-300 text-xs font-mono uppercase tracking-wider">
+              Candidate Resume / CV Attachment (.pdf, .docx, .txt)
             </label>
 
             <input
@@ -178,29 +181,29 @@ const AddCandidateModal = ({ onClose, onSubmit }) => {
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
-                className="border-2 border-dashed border-gray-700 hover:border-[#a8b88c] rounded-xl p-6 text-center transition cursor-pointer bg-[#2a2a2a]/40 group"
+                className="border border-dashed border-white/15 hover:border-emerald-500/40 rounded-xl p-5 text-center transition cursor-pointer bg-[#0A0E16]/60 group"
               >
-                <Upload className="w-8 h-8 text-gray-500 group-hover:text-[#a8b88c] mx-auto mb-2 transition" />
-                <p className="text-gray-300 text-xs font-semibold">
-                  Click to select candidate CV or drag & drop file here
+                <Upload className="w-6 h-6 text-gray-400 group-hover:text-emerald-400 mx-auto mb-1.5 transition" />
+                <p className="text-gray-300 text-xs font-mono">
+                  Select candidate PDF CV or drag & drop file
                 </p>
-                <p className="text-gray-500 text-[11px] mt-1">Supports PDF, DOCX, and TXT files</p>
+                <p className="text-gray-500 text-[10px] font-mono mt-0.5">Parsed for native preview & competency checks</p>
               </div>
             ) : (
-              <div className="flex items-center justify-between p-3.5 bg-[#252525] border border-gray-700 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <FileText className="w-6 h-6 text-[#a8b88c]" />
+              <div className="flex items-center justify-between p-3 bg-[#0A0E16] border border-white/10 rounded-xl font-mono">
+                <div className="flex items-center gap-2.5">
+                  <FileText className="w-5 h-5 text-emerald-400" />
                   <div>
                     <p className="text-white text-xs font-bold truncate max-w-xs">{formData.resume_name || selectedFile?.name}</p>
                     <p className="text-gray-500 text-[10px]">
-                      {selectedFile ? `${Math.round(selectedFile.size / 1024)} KB · Uploaded` : 'Resume attached'}
+                      {selectedFile ? `${Math.round(selectedFile.size / 1024)} KB · Uploaded` : 'CV Attached'}
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={handleRemoveFile}
-                  className="p-1.5 text-gray-400 hover:text-red-400 transition"
+                  className="p-1 text-gray-400 hover:text-rose-400 transition"
                   title="Remove CV"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -210,24 +213,31 @@ const AddCandidateModal = ({ onClose, onSubmit }) => {
           </div>
 
           {/* Notes */}
-          <div>
-            <label className="block text-gray-300 text-sm font-medium mb-2">Additional Notes</label>
+          <div className="space-y-1.5">
+            <label className="block text-gray-300 text-xs font-mono uppercase tracking-wider">Evaluation Dossier Notes</label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               placeholder="Candidate interview preparation notes or background details..."
               rows={2}
-              className="w-full px-4 py-3 bg-[#2a2a2a] border border-gray-700 rounded-lg text-gray-300 text-sm placeholder-gray-500 focus:outline-none focus:border-[#a8b88c] transition resize-none"
+              className="w-full px-3.5 py-2.5 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 transition resize-none font-mono"
             />
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-3 pt-2 justify-end">
-            <button type="button" onClick={onClose} className="px-5 py-2.5 text-gray-400 hover:text-gray-200 text-sm font-medium transition">
+          <div className="flex items-center gap-3 pt-3 justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 text-gray-400 hover:text-white text-xs font-medium transition"
+            >
               Cancel
             </button>
-            <button type="submit" className="px-6 py-2.5 bg-[#a8b88c] text-gray-900 rounded-lg text-sm font-bold hover:bg-[#98a87c] transition shadow">
-              Add Candidate & Save CV
+            <button
+              type="submit"
+              className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-surface font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20 font-display"
+            >
+              Register Candidate & Save CV
             </button>
           </div>
         </form>
