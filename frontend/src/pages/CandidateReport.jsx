@@ -457,7 +457,7 @@ const CandidateReport = () => {
             },
             {
               label: 'Attitude & Receptivity',
-              subtitle: 'Engagement, facial sentiment symmetry & collaborative tone',
+              subtitle: 'Engagement, vocal inflection symmetry & collaborative tone',
               icon: ThumbsUp,
               value: scores.attitude,
               status: scores.attitude >= 80 ? 'Exceptional' : 'Standard',
@@ -468,14 +468,14 @@ const CandidateReport = () => {
             },
             {
               label: 'Transparency & Honesty',
-              subtitle: 'Gaze sincerity, eye contact stability & unassisted thought flow',
+              subtitle: 'Speech spontaneity, vocal delivery stability & unassisted thought flow',
               icon: AlertCircle,
               value: scores.transparency,
               status: scores.transparency >= 70 ? 'Calibrated' : 'Flagged',
               color: 'text-amber-400',
               bg: 'bg-amber-500/15 border-amber-500/30',
               barColor: 'bg-amber-500',
-              bullet: '98.4% gaze on central focal zone · No secondary audio',
+              bullet: 'Natural vocal cadence · Zero secondary speaker interference',
             },
           ].map((metric) => {
             const Icon = metric.icon;

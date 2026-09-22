@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users,
-  Video,
   AlertTriangle,
   TrendingUp,
   ShieldCheck,
@@ -89,14 +88,14 @@ export const Dashboard = () => {
     },
   };
 
-  // Live in-progress proctor sessions
+  // Live in-progress proctor sessions (Audio Streams)
   const liveSessions = [
     {
       id: 'sess-001',
       candidateName: 'Janith Perera',
       role: 'Senior Full-Stack Engineer',
-      gaze: 'Centered (99%)',
-      noise: '-42 dB Nominal',
+      audioProfile: '16kHz Mono • Steady Cadence',
+      noise: '38 dB Nominal',
       status: 'VERIFIED NOMINAL',
       time: '14:32',
       integrity: 98,
@@ -105,8 +104,8 @@ export const Dashboard = () => {
       id: 'sess-002',
       candidateName: 'Marcus Vance',
       role: 'Lead Cloud Architect',
-      gaze: 'Gaze Shift (88%)',
-      noise: '-36 dB Optimal',
+      audioProfile: 'Vocal Cadence Shift (88%)',
+      noise: '44 dB Optimal',
       status: 'ATTENTION CHECK',
       time: '28:10',
       integrity: 84,
@@ -118,7 +117,7 @@ export const Dashboard = () => {
     {
       id: 'alt-1',
       candidate: 'Marcus Vance (#CAN-8924)',
-      type: 'Micro-gaze diversion (> 2.4s)',
+      type: 'Ambient noise spike (> 60 dB)',
       severity: 'warning',
       time: '02m ago',
     },
@@ -221,7 +220,7 @@ export const Dashboard = () => {
               Active In-Session
             </span>
             <div className="w-8 h-8 rounded-lg bg-[#6366f1]/10 border border-[#6366f1]/20 flex items-center justify-center text-[#6366f1]">
-              <Video className="w-4 h-4" />
+              <Radio className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline justify-between">
@@ -269,7 +268,7 @@ export const Dashboard = () => {
               -4 vs Yday
             </span>
           </div>
-          <p className="text-[11px] text-gray-500 mt-1 font-mono">11 Gaze • 5 Screen • 3 Noise</p>
+          <p className="text-[11px] text-gray-500 mt-1 font-mono">11 Noise Spikes • 5 Threshold Flags • 3 Audio Drops</p>
         </div>
       </div>
 
@@ -335,32 +334,34 @@ export const Dashboard = () => {
                     </span>
                   </div>
 
-                  {/* Simulated Camera Window with Telemetry Overlay */}
-                  <div className="relative h-28 rounded-md bg-[#181c24] border border-white/[0.06] overflow-hidden flex items-center justify-center">
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e16]/80 via-transparent to-transparent z-10"></div>
-                    
-                    {/* Corner Reticle brackets */}
-                    <div className="absolute top-2 left-2 w-3 h-3 border-t border-l border-[#10b981]/70"></div>
-                    <div className="absolute top-2 right-2 w-3 h-3 border-t border-r border-[#10b981]/70"></div>
-                    <div className="absolute bottom-2 left-2 w-3 h-3 border-b border-l border-[#10b981]/70"></div>
-                    <div className="absolute bottom-2 right-2 w-3 h-3 border-b border-r border-[#10b981]/70"></div>
-
-                    {/* Candidate Silhouette representation */}
-                    <div className="w-12 h-12 rounded-full bg-[#262a33] border border-[#10b981]/40 flex items-center justify-center text-gray-400">
-                      <Users className="w-6 h-6 text-[#10b981]" />
+                  {/* Acoustic Signal Waveform Channel Display */}
+                  <div className="relative h-28 rounded-lg bg-[#0a0e16] border border-white/[0.06] p-3 flex flex-col justify-between overflow-hidden">
+                    <div className="flex items-center justify-between z-10">
+                      <div className="flex items-center gap-1.5 text-[9px] font-mono text-[#4edea3]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                        <span>REC {session.time}</span>
+                      </div>
+                      <span className="text-[9px] font-mono text-gray-400 bg-white/[0.04] px-1.5 py-0.5 rounded border border-white/[0.06]">
+                        {session.noise}
+                      </span>
                     </div>
 
-                    {/* Overlay telemetry tags */}
-                    <div className="absolute top-2 left-3 z-20 flex items-center gap-1.5 text-[9px] font-mono text-[#4edea3]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                      <span>REC {session.time}</span>
+                    {/* Acoustic Waveform Simulation Bars */}
+                    <div className="flex items-center justify-center gap-1 h-10 my-1">
+                      {[40, 65, 30, 85, 95, 55, 75, 45, 90, 60, 35, 70, 50, 80, 40, 60].map((h, i) => (
+                        <div
+                          key={i}
+                          style={{ height: `${h}%` }}
+                          className={`w-1 rounded-full transition-all duration-300 ${
+                            session.status === 'VERIFIED NOMINAL' ? 'bg-[#10b981]/70' : 'bg-[#f59e0b]/70'
+                          }`}
+                        />
+                      ))}
                     </div>
 
-                    <div className="absolute bottom-2 left-3 z-20 text-[9px] font-mono text-gray-300">
-                      <span>{session.gaze}</span>
-                    </div>
-                    <div className="absolute bottom-2 right-3 z-20 text-[9px] font-mono text-gray-400">
-                      <span>{session.noise}</span>
+                    <div className="flex items-center justify-between text-[9px] font-mono text-gray-400 z-10">
+                      <span className="truncate max-w-[130px]">{session.audioProfile}</span>
+                      <span className="text-gray-500">16kHz WAV</span>
                     </div>
                   </div>
 
@@ -372,7 +373,7 @@ export const Dashboard = () => {
                       to={`/interviews/${session.id}`}
                       className="px-2.5 py-1 rounded bg-[#181c24] hover:bg-[#262a33] text-[11px] font-mono text-gray-200 border border-white/[0.1] hover:border-[#10b981] transition flex items-center gap-1"
                     >
-                      <Eye className="w-3 h-3 text-[#10b981]" /> Proctor Stream
+                      <Radio className="w-3 h-3 text-[#10b981]" /> Audio Stream
                     </Link>
                   </div>
                 </div>

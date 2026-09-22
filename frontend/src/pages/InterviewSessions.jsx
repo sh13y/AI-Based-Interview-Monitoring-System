@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Play, Eye, Clock, CheckCircle2, AlertCircle, X, Video, Search, Filter,
+  Play, Eye, Clock, CheckCircle2, AlertCircle, X, Search, Filter,
   Activity, Shield, Mic, UserCheck, Sparkles, ChevronRight
 } from 'lucide-react';
 import { dummyInterviewSessions, dummyCandidates } from '../lib/dummyData';
@@ -203,8 +203,8 @@ const InterviewSessions = () => {
           >
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
               <div className="flex items-center gap-2.5">
-                <Video className="w-5 h-5 text-emerald-400" />
-                <h2 className="text-white text-base font-bold font-display">Initialize Live Proctor Session</h2>
+                <Mic className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-white text-base font-bold font-display">Initialize Live Acoustic Session</h2>
               </div>
               <button
                 onClick={() => setShowModal(false)}

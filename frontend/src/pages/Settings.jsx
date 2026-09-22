@@ -317,7 +317,7 @@ const Settings = () => {
                   {[
                     'Dispatched email alert upon candidate behavioral evaluation completion',
                     'Auditory threshold violation when room noise exceeds 60 dB ceiling',
-                    'Real-time anomaly push alert on multi-face or gaze drift detection',
+                    'Real-time anomaly push alert on audio clipping or secondary speaker detection',
                     'Automated 30-day compliance data purge warning notifications',
                   ].map((label, idx) => (
                     <label key={idx} className="flex items-center gap-3 text-xs text-gray-300 cursor-pointer p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/30 transition">
@@ -342,7 +342,7 @@ const Settings = () => {
                 </div>
 
                 <p className="text-gray-300 text-xs leading-relaxed">
-                  Modern Matrix strictly enforces an automated 30-day data purge policy for candidate biometric audio recordings, video frames, and interview transcripts to maintain full compliance with international privacy regulations.
+                  Modern Matrix strictly enforces an automated 30-day data purge policy for candidate biometric audio recordings, acoustic telemetry logs, and interview transcripts to maintain full compliance with international privacy regulations.
                 </p>
 
                 <div className="p-5 bg-[#0A0E16]/80 rounded-2xl border border-white/5 space-y-3 text-xs font-mono text-gray-300">

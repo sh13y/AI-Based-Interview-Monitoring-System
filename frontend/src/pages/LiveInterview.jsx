@@ -127,36 +127,10 @@ const LiveInterview = () => {
   // HTML5 Audio Element Ref for real playback
   const realAudioElementRef = useRef(null);
 
-  // Canvas & Video Refs
+  // Canvas Refs (Waveform & Spectrogram visualizer)
   const liveCanvasRef = useRef(null);
   const playbackCanvasRef = useRef(null);
-  const videoRef = useRef(null);
-  const [cameraActive, setCameraActive] = useState(false);
 
-  // Initialize webcam stream if available for live proctor HUD
-  useEffect(() => {
-    let camStream = null;
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false })
-        .then((s) => {
-          camStream = s;
-          if (videoRef.current) {
-            videoRef.current.srcObject = s;
-            videoRef.current.play().catch(() => {});
-          }
-          setCameraActive(true);
-        })
-        .catch(() => {
-          setCameraActive(false);
-        });
-    }
-
-    return () => {
-      if (camStream) {
-        camStream.getTracks().forEach((t) => t.stop());
-      }
-    };
-  }, []);
 
   const sessionQuestions = dummyQuestions.slice(0, 5);
 
@@ -1752,117 +1726,81 @@ const LiveInterview = () => {
 
       {/* Main HUD Workspace (8 cols / 4 cols) */}
       <div className="grid grid-cols-12 gap-6">
-        {/* Left Column: Video HUD + Waveform Visualizer + Audio Upload */}
+        {/* Left Column: Acoustic HUD + Waveform Visualizer + Audio Upload */}
         <div className="col-span-12 lg:col-span-8 space-y-5">
-          {/* Candidate Biometric HUD Stream Window */}
-          <div className="glass-panel rounded-xl border border-white/[0.08] overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2.5 bg-[#0f131c] border-b border-white/[0.07]">
-              <div className="flex items-center gap-2 text-xs font-mono">
-                <span className="flex items-center gap-1.5 text-gray-300">
+          {/* [FR-06 & FR-07: Master Acoustic Signal & 60 FPS Waveform Monitor] */}
+          <div className="glass-panel rounded-2xl border border-white/[0.08] overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-3 bg-[#0f131c] border-b border-white/[0.07]">
+              <div className="flex items-center gap-2.5 text-xs font-mono">
+                <span className="flex items-center gap-1.5 text-gray-200 font-semibold">
                   <Radio className="w-3.5 h-3.5 text-[#10b981] animate-pulse" />
-                  <span>Proctor Camera Feed</span>
+                  <span>Acoustic Signal Monitor</span>
                 </span>
                 <span className="text-gray-600">•</span>
-                <span className="text-[#4edea3]">Primary Face ID: #CAN-8924</span>
+                <span className="text-[#4edea3]">{candidate?.full_name || 'Janith Perera'} (#{candidate?.id || 'CAN-8924'})</span>
               </div>
               <div className="flex items-center gap-2 text-[10px] font-mono">
-                <span className="px-2 py-0.5 rounded bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/30">
-                  SINGLE PERSON (100%)
+                <span className="px-2.5 py-0.5 rounded bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/30 font-bold">
+                  16kHz MONO WAV
                 </span>
                 <span className="px-2 py-0.5 rounded bg-white/[0.06] text-gray-400 border border-white/[0.08]">
-                  60 FPS
+                  60 FPS CANVAS
                 </span>
               </div>
             </div>
 
-            {/* Video Stage Frame with Reticle Overlays */}
-            <div className="relative h-72 sm:h-80 bg-[#0a0e16] overflow-hidden flex items-center justify-center">
-              {/* Corner Reticle Brackets */}
-              <div className="absolute top-4 left-4 w-5 h-5 border-t-2 border-l-2 border-[#10b981]/70 z-20"></div>
-              <div className="absolute top-4 right-4 w-5 h-5 border-t-2 border-r-2 border-[#10b981]/70 z-20"></div>
-              <div className="absolute bottom-4 left-4 w-5 h-5 border-b-2 border-l-2 border-[#10b981]/70 z-20"></div>
-              <div className="absolute bottom-4 right-4 w-5 h-5 border-b-2 border-r-2 border-[#10b981]/70 z-20"></div>
+            {/* Audio Waveform Canvas Stage (FR-07: Signal Feedback) */}
+            <div className="relative h-64 sm:h-72 bg-[#0a0e16] p-4 flex flex-col justify-between overflow-hidden">
+              {/* Corner HUD Reticle Brackets */}
+              <div className="absolute top-3 left-3 w-4 h-4 border-t-2 border-l-2 border-[#10b981]/60 pointer-events-none"></div>
+              <div className="absolute top-3 right-3 w-4 h-4 border-t-2 border-r-2 border-[#10b981]/60 pointer-events-none"></div>
+              <div className="absolute bottom-3 left-3 w-4 h-4 border-b-2 border-l-2 border-[#10b981]/60 pointer-events-none"></div>
+              <div className="absolute bottom-3 right-3 w-4 h-4 border-b-2 border-r-2 border-[#10b981]/60 pointer-events-none"></div>
 
-              {/* Real Video Element if active, or Candidate Silhouette HUD */}
-              {cameraActive ? (
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover scale-x-[-1]"
+              {/* Live Overlay Telemetry Badges */}
+              <div className="flex items-center justify-between z-10 text-[10px] font-mono">
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0a0e16]/90 backdrop-blur-md text-[#ffb4ab] border border-red-500/30">
+                  <span className={`w-2 h-2 rounded-full ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-gray-600'}`}></span>
+                  <span>{isRecording ? `REC ${formatTime(elapsedSeconds)}` : 'MICROPHONE READY'}</span>
+                </span>
+
+                <span className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#0a0e16]/90 backdrop-blur-md text-[#4edea3] border border-[#10b981]/30">
+                  <Mic className="w-3 h-3 text-[#10b981]" />
+                  <span>{micGranted ? 'Web Audio Stream Active' : 'Click "Start Recording" Below'}</span>
+                </span>
+              </div>
+
+              {/* 60 FPS HTML5 Dynamic Waveform Canvas */}
+              <div className="flex-1 w-full flex items-center justify-center my-2">
+                <canvas
+                  ref={liveCanvasRef}
+                  width={800}
+                  height={160}
+                  className="w-full h-full block rounded-lg cursor-pointer"
+                  onClick={() => {
+                    if (!isRecording) startRecording();
+                  }}
+                  title={isRecording ? 'Real-time audio signal active' : 'Click to start recording'}
                 />
-              ) : (
-                <div className="flex flex-col items-center justify-center text-center p-6 space-y-3 z-10">
-                  <div className="w-24 h-24 rounded-full bg-[#181c24] border-2 border-dashed border-[#10b981]/40 flex items-center justify-center relative">
-                    <User className="w-12 h-12 text-[#10b981]/70" />
-                    <div className="absolute inset-0 rounded-full border border-[#10b981]/20 animate-ping"></div>
-                  </div>
-                  <div>
-                    <p className="text-white text-xs font-bold font-mono">Biometric Video Simulation</p>
-                    <p className="text-gray-500 text-[10px] font-mono mt-0.5">Webcam inactive or virtual feed engaged</p>
-                  </div>
+              </div>
+
+              {/* Bottom Telemetry Bar */}
+              <div className="flex items-center justify-between z-10 text-[10px] font-mono text-gray-400">
+                <div className="flex items-center gap-3">
+                  <span className="bg-[#0a0e16]/80 px-2 py-0.5 rounded border border-white/[0.08]">
+                    Vocal Band: 85Hz – 3.5kHz
+                  </span>
+                  <span className="hidden sm:inline text-gray-500">
+                    Linear 16-bit PCM • Normalizer: Peak -0.9 dB
+                  </span>
                 </div>
-              )}
-
-              {/* Live HUD Telemetry Tags Overlay */}
-              <div className="absolute top-4 left-6 z-20 flex items-center gap-2">
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0a0e16]/85 backdrop-blur-md text-[10px] font-mono text-[#ffb4ab] border border-red-500/30">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                  <span>{isRecording ? `REC ${formatTime(elapsedSeconds)}` : 'REC PAUSED'}</span>
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Acoustic Noise:</span>
+                  <span className={`font-bold px-2 py-0.5 rounded ${noiseWarning ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/30'}`}>
+                    {currentNoiseDb} dB {noiseWarning ? '(HIGH)' : '(NOMINAL)'}
+                  </span>
+                </div>
               </div>
-
-              <div className="absolute top-4 right-6 z-20 flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded bg-[#0a0e16]/85 backdrop-blur-md text-[10px] font-mono text-[#4edea3] border border-[#10b981]/40 flex items-center gap-1">
-                  <Eye className="w-3 h-3 text-[#10b981]" />
-                  <span>Gaze: Centered (99%)</span>
-                </span>
-              </div>
-
-              <div className="absolute bottom-4 left-6 z-20 text-[10px] font-mono text-gray-400 bg-[#0a0e16]/80 backdrop-blur-md px-2.5 py-1 rounded border border-white/[0.08]">
-                <span>Head Pose: Pitch +0.8° | Yaw -1.2° | Roll 0.0°</span>
-              </div>
-
-              <div className="absolute bottom-4 right-6 z-20 flex items-center gap-2 bg-[#0a0e16]/80 backdrop-blur-md px-2.5 py-1 rounded border border-white/[0.08] text-[10px] font-mono">
-                <span className="text-gray-400">Audio Floor:</span>
-                <span className={`font-bold ${noiseWarning ? 'text-red-400' : 'text-[#4edea3]'}`}>
-                  {currentNoiseDb} dB
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 60 FPS HTML5 Canvas Dynamic Waveform Visualizer */}
-          <div className="glass-panel rounded-xl p-5 border border-white/[0.08] space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-[#10b981] animate-pulse" />
-                <h3 className="text-white text-xs font-bold uppercase tracking-wider font-mono">
-                  Live Voice Audio Stream Visualizer
-                </h3>
-              </div>
-              <span className="text-[10px] text-gray-400 font-mono">
-                {isRecording ? 'Real-Time Frequency & Amplitude' : 'Stream Paused'}
-              </span>
-            </div>
-
-            <div className="w-full h-32 bg-[#0f131c] rounded-xl border border-white/[0.06] overflow-hidden p-1 shadow-inner">
-              <canvas
-                ref={liveCanvasRef}
-                width={800}
-                height={120}
-                className="w-full h-full block rounded-lg cursor-pointer"
-                onClick={() => {
-                  if (!isRecording) startRecording();
-                }}
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-[10px] text-gray-500 font-mono pt-0.5">
-              <span>Bass (85Hz)</span>
-              <span className="text-gray-400">Human Vocal Band (85Hz – 3.5kHz)</span>
-              <span>Treble (3.5kHz)</span>
             </div>
           </div>
 
