@@ -294,14 +294,11 @@ export const saveTranscript = async ({ sessionId, rawText }) => {
  * @returns {Promise<{ id: string|null, error?: string }>}
  */
 export const saveBehavioralScores = async ({
-  sessionId, predictedScore, similarityScore, isRelevant, filename,
+  sessionId, confidence, attitude, transparency, overall,
+  audioSeconds, processingSeconds,
+  // legacy whisper fields (optional, kept for backward compat)
+  predictedScore, similarityScore, isRelevant, filename,
 }) => {
-  // Map model scores → DB columns
-  const overallScore = parseFloat((predictedScore * 10).toFixed(2));     // e.g. 4.73 → 47.30
-  const relevanceScore = parseFloat((similarityScore * 100).toFixed(2)); // e.g. 0.55 → 55.26
-  // Use overall for all legacy columns until model gives individual scores
-  const baseScore = overallScore;
-
   if (!isSupabaseConfigured()) {
     console.warn('[Scores] Demo mode — skipping DB write.');
     return { id: null, demo: true };
@@ -312,16 +309,17 @@ export const saveBehavioralScores = async ({
       .from('behavioral_scores')
       .insert([{
         session_id: sessionId,
-        honesty_score: baseScore,
-        attitude_score: baseScore,
-        confidence_score: baseScore,
-        relevance_score: relevanceScore,
-        overall_score: overallScore,
-        // New Whisper-specific columns
-        whisper_predicted_score: predictedScore,
-        whisper_similarity_score: similarityScore,
-        whisper_is_relevant: isRelevant,
-        whisper_filename: filename,
+        // New behavioral model columns
+        honesty_score:     transparency ?? 0,   // transparency maps to honesty slot
+        attitude_score:    attitude     ?? 0,
+        confidence_score:  confidence   ?? 0,
+        relevance_score:   0,                   // not returned by new model
+        overall_score:     overall      ?? 0,
+        // Raw model metadata
+        whisper_predicted_score:  predictedScore  ?? null,
+        whisper_similarity_score: similarityScore ?? null,
+        whisper_is_relevant:      isRelevant      ?? null,
+        whisper_filename:         filename        ?? null,
       }])
       .select('id')
       .single();
@@ -337,3 +335,66 @@ export const saveBehavioralScores = async ({
   }
 };
 
+// ==============================================================================
+// FR-12: FETCH LATEST BEHAVIORAL SCORES — Get most recent scores for a candidate
+// ==============================================================================
+
+/**
+ * Fetches the most recent behavioral scores for a candidate from Supabase.
+ * Joins interview_sessions → behavioral_scores for the latest session.
+ *
+ * @param {string} candidateId
+ * @returns {Promise<{ scores: object|null, sessionDate: string|null, sessionId: string|null, sessionStatus: string|null, error?: string }>}
+ */
+export const fetchLatestBehavioralScores = async (candidateId) => {
+  if (!isSupabaseConfigured()) {
+    return { scores: null, sessionDate: null, demo: true };
+  }
+
+  try {
+    // Step 1: Get the most recent session for this candidate
+    const { data: sessionData, error: sessionError } = await supabase
+      .from('interview_sessions')
+      .select('id, session_date, status')
+      .eq('candidate_id', candidateId)
+      .order('session_date', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (sessionError || !sessionData) {
+      return { scores: null, sessionDate: null, error: sessionError?.message };
+    }
+
+    // Step 2: Fetch behavioral scores for that session
+    const { data: scoreData, error: scoreError } = await supabase
+      .from('behavioral_scores')
+      .select('honesty_score, attitude_score, confidence_score, relevance_score, overall_score, created_at')
+      .eq('session_id', sessionData.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (scoreError || !scoreData) {
+      return { scores: null, sessionDate: sessionData.session_date, error: scoreError?.message };
+    }
+
+    // Step 3: Map DB columns → UI format
+    const scores = {
+      honesty:    Math.round(scoreData.honesty_score    ?? 0),
+      attitude:   Math.round(scoreData.attitude_score   ?? 0),
+      confidence: Math.round(scoreData.confidence_score ?? 0),
+      relevance:  Math.round(scoreData.relevance_score  ?? 0),
+      overall:    Math.round(scoreData.overall_score    ?? 0),
+    };
+
+    return {
+      scores,
+      sessionDate: sessionData.session_date,
+      sessionId: sessionData.id,
+      sessionStatus: sessionData.status,
+    };
+  } catch (err) {
+    console.warn('[FetchScores] Unexpected error:', err.message);
+    return { scores: null, sessionDate: null, error: err.message };
+  }
+};

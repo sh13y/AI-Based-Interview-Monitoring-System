@@ -17,13 +17,14 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import {
   Clock, Mic, MicOff, Pause, Play, CheckCircle2, Server,
   AlertTriangle, Volume2, FileText, Cpu, ChevronRight, ChevronLeft,
-  Download, Award, User, RefreshCw, BarChart2, Radio, Check, Sparkles, Sliders, Music, Headphones, Upload, FlaskConical
+  Download, Award, User, RefreshCw, BarChart2, Radio, Check, Sliders, Music, Headphones, Upload, Sparkles
 } from 'lucide-react';
 import { dummyInterviewSessions, dummyQuestions, dummyTranscripts, dummyBehavioralScores, dummyCandidates } from '../lib/dummyData';
 import { writeAuditLog, uploadAudioFile, saveInterviewSession, saveTranscript, saveBehavioralScores } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { preprocessAudioToWav, createSynthesizedWav, pcmChunksToWav } from '../lib/audioProcessor';
 import { callWhisperAPI, getScoreColor } from '../lib/whisperApi';
+import { callBehavioralAPI, mapToBehavioralScores, isBehavioralApiConfigured } from '../lib/behavioralApi';
 import toast, { Toaster } from 'react-hot-toast';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -66,7 +67,7 @@ const LiveInterview = () => {
   const [currentNoiseDb, setCurrentNoiseDb] = useState(38);
   const [noiseWarning, setNoiseWarning] = useState(false);
   const [audioFormat, setAudioFormat] = useState({ sampleRate: 48000, channels: 1, format: 'PCM' });
-  const [simulationMode, setSimulationMode] = useState(false);
+
   const [gainBoost, setGainBoost] = useState(2.5);
 
   // Microphone Device Management & Diagnostics
@@ -88,12 +89,19 @@ const LiveInterview = () => {
   const [whisperLoading, setWhisperLoading] = useState(false);
   const [whisperError, setWhisperError] = useState(null);
 
+  // Behavioral Evaluation API state
+  const [behavioralScores, setBehavioralScores] = useState(null);
+  const [behavioralLoading, setBehavioralLoading] = useState(false);
+  const [behavioralError, setBehavioralError] = useState(null);
+
+  // [Test Upload] state for audio file upload testing
+  const [testUploadFile, setTestUploadFile] = useState(null);
+  const [testUploading, setTestUploading] = useState(false);
+
   // [DB] Saved session ID from Supabase (used to link transcript & scores)
   const [dbSavedSessionId, setDbSavedSessionId] = useState(null);
 
-  // [TEST MODE] Temporary WAV upload for model testing
-  const [uploadedTestFile, setUploadedTestFile] = useState(null);
-  const [testUploading, setTestUploading] = useState(false);
+
 
   // Audio Playback state (Starts from 00:00)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -412,7 +420,7 @@ const LiveInterview = () => {
       let hasRealInput = false;
       let calculatedDb = 36;
 
-      if (analyserRef.current && micGranted && !simulationMode) {
+      if (analyserRef.current && micGranted) {
         const bufferLength = analyserRef.current.frequencyBinCount;
         const rawFreq = new Uint8Array(bufferLength);
         const rawTime = new Uint8Array(bufferLength);
@@ -452,18 +460,8 @@ const LiveInterview = () => {
             const energy = Math.max(freqVal * gainBoost, timeDev * gainBoost * 1.5);
             const centerWeight = Math.sin((i / (numBars - 1)) * Math.PI);
             barHeight = Math.max(8, energy * (height - 16) * (0.35 + 0.65 * centerWeight));
-          } else if (simulationMode) {
-            // ONLY draw fake animated waves if simulation mode is manually enabled
-            const wave1 = Math.sin(animationPhase * 2.5 + i * 0.28) * 0.5 + 0.5;
-            const wave2 = Math.cos(animationPhase * 1.8 + i * 0.45) * 0.5 + 0.5;
-            const wave3 = Math.sin(animationPhase * 3.7 + i * 0.15) * 0.5 + 0.5;
-            const centerWeight = Math.sin((i / (numBars - 1)) * Math.PI);
-
-            const voicePulse = (wave1 * 0.45 + wave2 * 0.35 + wave3 * 0.2) * (height - 20) * centerWeight;
-            barHeight = Math.max(8, voicePulse + Math.sin(animationPhase + i * 0.5) * 4 + 10);
-            calculatedDb = Math.round(44 + Math.sin(animationPhase * 2) * 12 + Math.cos(animationPhase * 3) * 6);
           } else {
-            // Real mic connected: user is silent. Show small ambient resting floor (NO fake dancing bars!)
+            // Real mic connected: user is silent. Show small ambient resting floor
             const timeDev = Math.abs(timeData[i] - 128) / 128;
             barHeight = Math.max(6, Math.min(18, timeDev * 50 * gainBoost + 6));
             calculatedDb = 32;
@@ -514,7 +512,7 @@ const LiveInterview = () => {
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [viewMode, isRecording, micGranted, simulationMode, gainBoost]);
+  }, [viewMode, isRecording, micGranted, gainBoost]);
 
   // ── Playback Canvas Waveform Engine ────────────────────────────────────────
   useEffect(() => {
@@ -681,7 +679,6 @@ const LiveInterview = () => {
 
       setMicGranted(true);
       setMicError(null);
-      setSimulationMode(false);
       startRecording();
 
       await writeAuditLog({
@@ -693,11 +690,10 @@ const LiveInterview = () => {
       });
       toast.success('Microphone stream connected successfully!');
     } catch (err) {
-      console.warn('Microphone access note:', err.message);
-      setMicError('Microphone permission not granted or unavailable. Running in live visualizer simulation mode.');
-      setMicGranted(true);
-      setSimulationMode(true);
-      startRecording();
+      console.error('Microphone access failed:', err.message);
+      setMicError('Microphone permission was denied or no microphone is available. Please allow microphone access in your browser settings and try again.');
+      setMicGranted(false);
+      toast.error('Microphone access is required for live interviews. Please grant permission and try again.', { duration: 6000 });
     }
   };
 
@@ -754,50 +750,71 @@ const LiveInterview = () => {
     }
   };
 
-  // ── [TEST MODE] Direct WAV upload → Whisper API bypass ───────────────────
-  // Temporary function: skips recording, sends uploaded WAV directly to model
+  // ── Test Audio Upload → Whisper + Behavioral API ─────────────────────────
   const handleTestUpload = async (file) => {
     if (!file) return;
-    setUploadedTestFile(file);
+    setTestUploadFile(file);
     setTestUploading(true);
     setShowPreprocess(true);
     setPreprocessStep(0);
 
-    // Animate through preprocess steps quickly
+    // Animate through preprocess steps
     let step = 0;
     const interval = setInterval(() => {
       step++;
       setPreprocessStep(step);
-      if (step >= PREPROCESS_STEPS.length - 1) {
-        clearInterval(interval);
-      }
+      if (step >= PREPROCESS_STEPS.length - 1) clearInterval(interval);
     }, 400);
 
-    // Wait a moment for the animation to start, then call API
     setTimeout(async () => {
+      // Call Whisper API
       setWhisperLoading(true);
       setWhisperError(null);
       setWhisperResult(null);
+
       try {
         const apiResult = await callWhisperAPI(file);
         setWhisperResult(apiResult);
         setTranscript(apiResult.transcript || '');
-        // Set fake audio URL from the uploaded file so the player shows it
         const url = URL.createObjectURL(file);
         setRealAudioUrl(url);
-        setRecordedWavData({ wavBlob: file, wavUrl: url, duration: 30, wavSizeKb: Math.round(file.size / 1024), sampleRate: 16000, channels: '1 (Mono)', format: '16-bit Linear PCM WAV' });
+        setRecordedWavData({
+          wavBlob: file, wavUrl: url,
+          duration: 30,
+          wavSizeKb: Math.round(file.size / 1024),
+          sampleRate: 16000, channels: '1 (Mono)',
+          format: '16-bit Linear PCM WAV',
+        });
         toast.success('Whisper model processed your uploaded file!');
       } catch (err) {
         setWhisperError(err.message || 'API call failed.');
-        const t = dummyTranscripts['ses-001'];
+        const t = dummyTranscripts[session?.id] || dummyTranscripts['ses-001'];
         setTranscript(t);
-        toast.error('API error — showing fallback transcript.', { duration: 5000 });
+        toast.error('Whisper API error — showing fallback transcript.', { duration: 5000 });
       } finally {
         setWhisperLoading(false);
-        setTestUploading(false);
-        setShowPreprocess(false);
-        setShowTranscript(true);
       }
+
+      // Call Behavioral API
+      if (isBehavioralApiConfigured()) {
+        setBehavioralLoading(true);
+        setBehavioralError(null);
+        try {
+          const behavResult = await callBehavioralAPI(file);
+          const scores = mapToBehavioralScores(behavResult);
+          setBehavioralScores(scores);
+          toast.success('Behavioral evaluation completed!');
+        } catch (err) {
+          setBehavioralError(err.message || 'Behavioral API failed.');
+          toast.error('Behavioral API error — using fallback scores.', { duration: 5000 });
+        } finally {
+          setBehavioralLoading(false);
+        }
+      }
+
+      setTestUploading(false);
+      setShowPreprocess(false);
+      setShowTranscript(true);
     }, PREPROCESS_STEPS.length * 400 + 200);
   };
 
@@ -974,6 +991,37 @@ const LiveInterview = () => {
           setShowPreprocess(false);
           toast.success('Audio successfully converted to 16kHz WAV format!');
         }
+
+        // ── Step G: Call Behavioral Evaluation API ────────────────────────────
+        if (isBehavioralApiConfigured() && convertedWavBlob) {
+          setBehavioralLoading(true);
+          setBehavioralError(null);
+          try {
+            const behavResult = await callBehavioralAPI(convertedWavBlob);
+            const scores = mapToBehavioralScores(behavResult);
+            setBehavioralScores(scores);
+            toast.success('Behavioral evaluation completed successfully!');
+
+            // Update DB scores with real behavioral data
+            if (dbSessionId) {
+              await saveBehavioralScores({
+                sessionId: dbSessionId,
+                confidence:        scores.confidence,
+                attitude:          scores.attitude,
+                transparency:      scores.transparency,
+                overall:           scores.overall,
+                audioSeconds:      scores.audioSeconds,
+                processingSeconds: scores.processingSeconds,
+              }).catch(err => console.warn('[Behavioral DB] Save failed:', err));
+            }
+          } catch (behavErr) {
+            console.warn('Behavioral API error:', behavErr);
+            setBehavioralError(behavErr.message || 'Failed to connect to Behavioral evaluation model.');
+            toast.error('Behavioral evaluation unavailable — using fallback scores.', { duration: 5000 });
+          } finally {
+            setBehavioralLoading(false);
+          }
+        }
       }
     }, 850);
   };
@@ -986,7 +1034,7 @@ const LiveInterview = () => {
 
   if (!session) return null;
 
-  const currentScores = dummyBehavioralScores[session.id] || { honesty: 94, attitude: 89, confidence: 88, relevance: 91, overall: 90 };
+  const currentScores = behavioralScores || { confidence: 0, attitude: 0, transparency: 0, overall: 0, audioSeconds: 0, processingSeconds: 0 };
   const sessionTranscriptText = dummyTranscripts[session.id] || dummyTranscripts['ses-001'];
 
   // ── Preprocessing Modal with Live Conversion Feedback (FR-08 & FR-09) ──────
@@ -1467,23 +1515,43 @@ const LiveInterview = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-3 bg-[#1e1e1e] p-3.5 rounded-xl border border-gray-800 text-center">
-                <div>
-                  <p className="text-gray-500 text-[11px]">Honesty</p>
-                  <p className="text-[#a8b88c] font-bold text-base mt-0.5">{currentScores.honesty}%</p>
+              <div className="bg-[#1e1e1e] p-3.5 rounded-xl border border-gray-800">
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">Behavioral Evaluation</span>
+                  {behavioralLoading ? (
+                    <span className="text-[#d4a843] text-[10px] font-semibold flex items-center gap-1">
+                      <div className="w-2.5 h-2.5 border border-[#d4a843] border-t-transparent rounded-full animate-spin" />
+                      Evaluating...
+                    </span>
+                  ) : behavioralScores ? (
+                    <span className="text-[#a8b88c] text-[10px] font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> AI Model
+                    </span>
+                  ) : (
+                    <span className="text-gray-600 text-[10px] font-semibold">Pending</span>
+                  )}
                 </div>
-                <div>
-                  <p className="text-gray-500 text-[11px]">Attitude</p>
-                  <p className="text-[#a8b88c] font-bold text-base mt-0.5">{currentScores.attitude}%</p>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <p className="text-gray-500 text-[11px]">Confidence</p>
+                    <p className={`font-bold text-base mt-0.5 ${behavioralScores ? 'text-[#a8b88c]' : 'text-gray-400'}`}>{currentScores.confidence}%</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-[11px]">Attitude</p>
+                    <p className={`font-bold text-base mt-0.5 ${behavioralScores ? 'text-[#a8b88c]' : 'text-gray-400'}`}>{currentScores.attitude}%</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-[11px]">Transparency</p>
+                    <p className={`font-bold text-base mt-0.5 ${behavioralScores ? 'text-[#a8b88c]' : 'text-gray-400'}`}>{currentScores.transparency}%</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-gray-500 text-[11px]">Confidence</p>
-                  <p className="text-[#a8b88c] font-bold text-base mt-0.5">{currentScores.confidence}%</p>
-                </div>
-                <div>
-                  <p className="text-gray-500 text-[11px]">Relevance</p>
-                  <p className="text-[#a8b88c] font-bold text-base mt-0.5">{currentScores.relevance}%</p>
-                </div>
+                {behavioralScores && currentScores.audioSeconds > 0 && (
+                  <div className="flex items-center gap-3 mt-2.5 pt-2.5 border-t border-gray-800 text-[10px] text-gray-500 font-mono">
+                    <span>🎙 {currentScores.audioSeconds.toFixed(1)}s audio</span>
+                    <span>·</span>
+                    <span>⚙ {currentScores.processingSeconds.toFixed(1)}s processing</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1556,6 +1624,27 @@ const LiveInterview = () => {
         </div>
       </div>
 
+      {/* Microphone Access Error Banner */}
+      {micError && !micGranted && (
+        <div className="bg-red-950/40 border-2 border-red-500/60 rounded-xl p-4 flex items-center justify-between shadow-xl mb-6">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 flex-shrink-0">
+              <MicOff className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-red-300 text-sm font-bold">Microphone Access Required</p>
+              <p className="text-gray-400 text-xs mt-0.5">{micError}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => initMicrophone()}
+            className="flex items-center gap-1.5 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded-lg transition shadow-lg flex-shrink-0"
+          >
+            <Mic className="w-3.5 h-3.5" /> Grant Access & Retry
+          </button>
+        </div>
+      )}
+
       {/* [FR-08: SESSION INTERRUPTION RECOVERY BANNER] */}
       {sessionRestored && !isRecording && (
         <div className="bg-[#2a2415] border-2 border-[#d4a843]/60 rounded-xl p-4 flex items-center justify-between shadow-xl mb-6 animate-in fade-in slide-in-from-top-2">
@@ -1612,79 +1701,11 @@ const LiveInterview = () => {
             </div>
 
             <div className="flex items-center gap-3 text-xs">
-              <button
-                onClick={() => setSimulationMode(!simulationMode)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition ${
-                  simulationMode
-                    ? 'bg-[#d4a843]/20 border-[#d4a843] text-[#d4a843]'
-                    : 'bg-[#1e1e1e] border-gray-700 text-gray-400 hover:text-white'
-                }`}
-                title="Toggle simulated voice pattern"
-              >
-                <Sparkles className="w-3 h-3 inline mr-1" />
-                {simulationMode ? 'Simulation: ON' : 'Simulation: OFF'}
-              </button>
               <span className={`w-2.5 h-2.5 rounded-full ${isRecording ? 'bg-green-400 animate-ping' : 'bg-gray-600'}`} />
             </div>
           </div>
 
-          {/* 60 FPS HTML5 Canvas Dynamic Waveform Visualizer (FR-05 & FR-06) */}
-          {/* [TEST MODE] WAV File Upload Panel — for testing Whisper model without recording */}
-          <div className="bg-[#252525] rounded-xl border-2 border-dashed border-[#d4a843]/50 p-5 space-y-3 relative overflow-hidden">
-            {/* Amber glow badge */}
-            <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 bg-[#d4a843]/15 border border-[#d4a843]/40 rounded-full">
-              <FlaskConical className="w-3 h-3 text-[#d4a843]" />
-              <span className="text-[#d4a843] text-[10px] font-bold uppercase tracking-wider">Test Mode</span>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <Upload className="w-4 h-4 text-[#d4a843]" />
-              <h3 className="text-white text-xs font-bold uppercase tracking-wider">Upload WAV File — Test Whisper Model</h3>
-            </div>
-            <p className="text-gray-500 text-[11px]">
-              Skip live recording. Upload a <code className="text-[#d4a843] font-mono">.wav</code> file directly to test the API. Remove this panel before production.
-            </p>
-
-            <label
-              htmlFor="wav-test-upload"
-              className={`flex flex-col items-center justify-center gap-2 w-full py-6 rounded-xl border-2 border-dashed cursor-pointer transition ${
-                testUploading
-                  ? 'border-[#d4a843]/60 bg-[#d4a843]/5 cursor-wait'
-                  : 'border-gray-700 hover:border-[#d4a843]/60 hover:bg-[#d4a843]/5'
-              }`}
-            >
-              {testUploading ? (
-                <>
-                  <div className="w-8 h-8 border-2 border-[#d4a843] border-t-transparent rounded-full animate-spin" />
-                  <span className="text-[#d4a843] text-xs font-semibold">Sending to Whisper model...</span>
-                </>
-              ) : uploadedTestFile ? (
-                <>
-                  <CheckCircle2 className="w-8 h-8 text-[#a8b88c]" />
-                  <span className="text-[#a8b88c] text-xs font-bold">{uploadedTestFile.name}</span>
-                  <span className="text-gray-500 text-[10px]">{(uploadedTestFile.size / 1024).toFixed(1)} KB · Click to re-upload</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-8 h-8 text-gray-600" />
-                  <span className="text-gray-400 text-xs">Click to choose a <span className="text-[#d4a843] font-semibold">.wav</span> file</span>
-                  <span className="text-gray-600 text-[10px]">16kHz Mono WAV recommended for best results</span>
-                </>
-              )}
-              <input
-                id="wav-test-upload"
-                type="file"
-                accept=".wav,audio/wav,audio/wave"
-                className="hidden"
-                disabled={testUploading}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleTestUpload(file);
-                  e.target.value = '';
-                }}
-              />
-            </label>
-          </div>
 
           {/* 60 FPS HTML5 Canvas Dynamic Waveform Visualizer (FR-05 & FR-06) */}
           <div className="bg-[#252525] rounded-xl p-6 border border-gray-800 space-y-4">
@@ -1759,6 +1780,60 @@ const LiveInterview = () => {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Audio Upload Panel — Test APIs */}
+          <div className="bg-[#252525] rounded-xl border border-gray-800 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Upload className="w-4 h-4 text-[#d4a843]" />
+                <h3 className="text-white text-xs font-bold uppercase tracking-wider">Upload Audio File</h3>
+              </div>
+              <span className="text-gray-500 text-[10px]">Test Whisper + Behavioral APIs</span>
+            </div>
+            <p className="text-gray-500 text-[11px]">
+              Upload a <code className="text-[#d4a843] font-mono">.wav</code> or audio file to test the AI models without live recording.
+            </p>
+
+            <label
+              htmlFor="test-audio-upload"
+              className={`flex flex-col items-center justify-center gap-2 w-full py-5 rounded-xl border-2 border-dashed cursor-pointer transition ${
+                testUploading
+                  ? 'border-[#d4a843]/60 bg-[#d4a843]/5 cursor-wait'
+                  : 'border-gray-700 hover:border-[#d4a843]/60 hover:bg-[#d4a843]/5'
+              }`}
+            >
+              {testUploading ? (
+                <>
+                  <div className="w-7 h-7 border-2 border-[#d4a843] border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[#d4a843] text-xs font-semibold">Processing with AI models...</span>
+                </>
+              ) : testUploadFile ? (
+                <>
+                  <CheckCircle2 className="w-7 h-7 text-[#a8b88c]" />
+                  <span className="text-[#a8b88c] text-xs font-bold">{testUploadFile.name}</span>
+                  <span className="text-gray-500 text-[10px]">{(testUploadFile.size / 1024).toFixed(1)} KB · Click to upload another</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-7 h-7 text-gray-600" />
+                  <span className="text-gray-400 text-xs">Click to choose an audio file</span>
+                  <span className="text-gray-600 text-[10px]">WAV, WebM, M4A supported</span>
+                </>
+              )}
+              <input
+                id="test-audio-upload"
+                type="file"
+                accept=".wav,.webm,.m4a,.mp3,audio/*"
+                className="hidden"
+                disabled={testUploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleTestUpload(file);
+                  e.target.value = '';
+                }}
+              />
+            </label>
           </div>
         </div>
 
@@ -1898,8 +1973,8 @@ const LiveInterview = () => {
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between p-2 bg-[#1e1e1e] rounded-lg border border-gray-800">
                 <span className="text-gray-400">Microphone Stream:</span>
-                <span className={`font-bold flex items-center gap-1 ${micGranted && !simulationMode ? 'text-green-400' : 'text-[#d4a843]'}`}>
-                  <CheckCircle2 className="w-3.5 h-3.5" /> {micGranted && !simulationMode ? 'Connected (Direct PCM)' : 'Simulation Mode'}
+                <span className={`font-bold flex items-center gap-1 ${micGranted ? 'text-green-400' : 'text-red-400'}`}>
+                  <CheckCircle2 className="w-3.5 h-3.5" /> {micGranted ? 'Connected (Direct PCM)' : 'Not Connected'}
                 </span>
               </div>
 

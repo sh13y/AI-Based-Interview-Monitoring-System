@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ChevronLeft, Download, AlertCircle, ThumbsUp, ShieldCheck, Target, User,
-  FileText, Eye, CheckCircle2, Sparkles, Printer, Maximize2, Layers, Database
+  FileText, Eye, CheckCircle2, Sparkles, Printer, Maximize2, Layers, Database, RefreshCw
 } from 'lucide-react';
 import { Radar } from 'react-chartjs-2';
 import {
@@ -16,7 +16,7 @@ import {
 } from 'chart.js';
 import { dummyCandidates, dummyBehavioralScores, dummyInterviewSessions, dummyTranscripts } from '../lib/dummyData';
 import { generateCandidatePdf, downloadCandidatePdf } from '../lib/pdfGenerator';
-import { isSupabaseConfigured } from '../lib/supabase';
+import { isSupabaseConfigured, fetchLatestBehavioralScores } from '../lib/supabase';
 import toast, { Toaster } from 'react-hot-toast';
 
 ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
@@ -27,9 +27,39 @@ const CandidateReport = () => {
   const [viewMode, setViewMode] = useState('embed'); // 'embed' or 'paper'
   const [pdfData, setPdfData] = useState(null);
 
+  // Live DB scores state
+  const [scoresLoading, setScoresLoading] = useState(true);
+  const [liveScores, setLiveScores] = useState(null);
+  const [liveSessionDate, setLiveSessionDate] = useState(null);
+  const [liveSessionStatus, setLiveSessionStatus] = useState(null);
+
   const candidate = dummyCandidates.find((c) => c.id === id) || dummyCandidates[0];
   const session = dummyInterviewSessions.find((s) => s.candidate_id === candidate.id) || dummyInterviewSessions[0];
-  const scores = dummyBehavioralScores[session.id] || { honesty: 94, attitude: 89, confidence: 88, relevance: 91, overall: 90 };
+  const fallbackScores = { confidence: 82, attitude: 89, transparency: 71, overall: 84 };
+
+  // Active scores: real DB data takes priority over dummy fallback
+  const scores = liveScores || fallbackScores;
+  const isLiveData = !!liveScores;
+
+  // Fetch real scores from Supabase on mount
+  useEffect(() => {
+    const loadScores = async () => {
+      setScoresLoading(true);
+      try {
+        const result = await fetchLatestBehavioralScores(candidate.id);
+        if (result.scores) {
+          setLiveScores(result.scores);
+          setLiveSessionDate(result.sessionDate);
+          setLiveSessionStatus(result.sessionStatus);
+        }
+      } catch (err) {
+        console.warn('[Report] Score fetch failed:', err);
+      } finally {
+        setScoresLoading(false);
+      }
+    };
+    loadScores();
+  }, [candidate.id]);
 
   useEffect(() => {
     if (candidate) {
@@ -59,11 +89,11 @@ const CandidateReport = () => {
   };
 
   const radarData = {
-    labels: ['Honesty', 'Attitude', 'Confidence', 'Relevance'],
+    labels: ['Confidence', 'Attitude', 'Transparency'],
     datasets: [
       {
         label: 'Candidate Score',
-        data: [scores.honesty, scores.attitude, scores.confidence, scores.relevance],
+        data: [scores.confidence, scores.attitude, scores.transparency],
         backgroundColor: 'rgba(168, 184, 140, 0.35)',
         borderColor: '#a8b88c',
         borderWidth: 2,
@@ -277,7 +307,26 @@ const CandidateReport = () => {
       )}
 
       {/* Evaluation Summary Grid */}
-      <h2 className="text-gray-300 text-sm font-bold uppercase tracking-wider mb-4">Behavioral Evaluation Summary</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-gray-300 text-sm font-bold uppercase tracking-wider">Behavioral Evaluation Summary</h2>
+        <div className="flex items-center gap-2">
+          {scoresLoading ? (
+            <span className="flex items-center gap-1.5 text-[11px] text-gray-500">
+              <RefreshCw className="w-3 h-3 animate-spin" /> Loading live data...
+            </span>
+          ) : isLiveData ? (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 bg-[#a8b88c]/15 border border-[#a8b88c]/40 rounded-full text-[11px] text-[#a8b88c] font-semibold">
+              <CheckCircle2 className="w-3 h-3" />
+              Live — {liveSessionDate ? new Date(liveSessionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Latest Session'}
+              {liveSessionStatus && <span className="ml-1 px-1.5 py-0.5 bg-[#1e1e1e] rounded text-gray-400">{liveSessionStatus}</span>}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-800 border border-gray-700 rounded-full text-[11px] text-gray-500 font-semibold">
+              <Database className="w-3 h-3" /> Baseline Data
+            </span>
+          )}
+        </div>
+      </div>
 
       <div className="grid grid-cols-12 gap-6 mb-6">
         {/* Radar Chart Card */}
@@ -287,71 +336,38 @@ const CandidateReport = () => {
           </div>
         </div>
 
-        {/* 4 Score Cards */}
-        <div className="col-span-12 lg:col-span-7 grid grid-cols-2 gap-4">
-          {/* Honesty */}
-          <div className="bg-[#252525] rounded-xl p-5 border border-gray-800 flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-[#a8b88c]/20 flex items-center justify-center text-[#a8b88c]">
-                  <AlertCircle className="w-4 h-4" />
+        {/* 3 Score Cards */}
+        <div className="col-span-12 lg:col-span-7 grid grid-cols-1 gap-4">
+          {[{ label: 'Confidence', icon: ShieldCheck, value: scores.confidence, color: 'text-blue-400', bg: 'bg-blue-400/20' },
+            { label: 'Attitude',   icon: ThumbsUp,    value: scores.attitude,   color: 'text-[#a8b88c]', bg: 'bg-[#a8b88c]/20' },
+            { label: 'Transparency', icon: AlertCircle, value: scores.transparency, color: 'text-amber-400', bg: 'bg-amber-400/20' },
+          ].map(({ label, icon: Icon, value, color, bg }) => (
+            <div key={label} className="bg-[#252525] rounded-xl p-5 border border-gray-800 flex items-center gap-5">
+              <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center ${color} flex-shrink-0`}>
+                <Icon className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-300 text-sm font-semibold">{label}</span>
+                  {scoresLoading ? (
+                    <div className="h-5 w-12 bg-gray-700 rounded animate-pulse" />
+                  ) : (
+                    <span className={`text-xl font-extrabold ${isLiveData ? 'text-white' : 'text-gray-400'}`}>{value}%</span>
+                  )}
                 </div>
-                <span className="text-gray-300 text-sm font-semibold">Honesty</span>
+                {scoresLoading ? (
+                  <div className="w-full bg-gray-800 h-2 rounded-full" />
+                ) : (
+                  <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+                    <div
+                      style={{ width: `${value}%` }}
+                      className={`h-full rounded-full transition-all duration-700 ${isLiveData ? 'bg-[#a8b88c]' : 'bg-gray-600'}`}
+                    />
+                  </div>
+                )}
               </div>
             </div>
-            <p className="text-white text-3xl font-extrabold mt-3">{scores.honesty}%</p>
-            <div className="w-full bg-gray-800 h-2 rounded-full mt-3 overflow-hidden">
-              <div style={{ width: `${scores.honesty}%` }} className="bg-[#a8b88c] h-full rounded-full" />
-            </div>
-          </div>
-
-          {/* Attitude */}
-          <div className="bg-[#252525] rounded-xl p-5 border border-gray-800 flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-[#a8b88c]/20 flex items-center justify-center text-[#a8b88c]">
-                  <ThumbsUp className="w-4 h-4" />
-                </div>
-                <span className="text-gray-300 text-sm font-semibold">Attitude</span>
-              </div>
-            </div>
-            <p className="text-white text-3xl font-extrabold mt-3">{scores.attitude}%</p>
-            <div className="w-full bg-gray-800 h-2 rounded-full mt-3 overflow-hidden">
-              <div style={{ width: `${scores.attitude}%` }} className="bg-[#a8b88c] h-full rounded-full" />
-            </div>
-          </div>
-
-          {/* Confidence */}
-          <div className="bg-[#252525] rounded-xl p-5 border border-gray-800 flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-[#a8b88c]/20 flex items-center justify-center text-[#a8b88c]">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <span className="text-gray-300 text-sm font-semibold">Confidence</span>
-              </div>
-            </div>
-            <p className="text-white text-3xl font-extrabold mt-3">{scores.confidence}%</p>
-            <div className="w-full bg-gray-800 h-2 rounded-full mt-3 overflow-hidden">
-              <div style={{ width: `${scores.confidence}%` }} className="bg-[#a8b88c] h-full rounded-full" />
-            </div>
-          </div>
-
-          {/* Relevance */}
-          <div className="bg-[#252525] rounded-xl p-5 border border-gray-800 flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-[#a8b88c]/20 flex items-center justify-center text-[#a8b88c]">
-                  <Target className="w-4 h-4" />
-                </div>
-                <span className="text-gray-300 text-sm font-semibold">Relevance</span>
-              </div>
-            </div>
-            <p className="text-white text-3xl font-extrabold mt-3">{scores.relevance}%</p>
-            <div className="w-full bg-gray-800 h-2 rounded-full mt-3 overflow-hidden">
-              <div style={{ width: `${scores.relevance}%` }} className="bg-[#a8b88c] h-full rounded-full" />
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
