@@ -5,13 +5,13 @@
 //   [FR-06: INITIATE NEW LIVE MONITORING SESSION]
 // ==============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Play, Eye, Clock, CheckCircle2, AlertCircle, X, Search, Filter,
-  Activity, Shield, Mic, UserCheck, Sparkles, ChevronRight
+  Activity, Shield, Mic, UserCheck, Sparkles, ChevronRight, RefreshCw
 } from 'lucide-react';
-import { dummyInterviewSessions, dummyCandidates } from '../lib/dummyData';
+import { fetchInterviewSessionsList, fetchCandidatesList, isSupabaseConfigured } from '../lib/supabase';
 
 const statusBadges = {
   'Completed': 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
@@ -21,27 +21,66 @@ const statusBadges = {
 
 const InterviewSessions = () => {
   const navigate = useNavigate();
+  const [sessions, setSessions] = useState([]);
+  const [candidates, setCandidates] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const [showModal, setShowModal] = useState(false);
-  const [selectedCandidateId, setSelectedCandidateId] = useState(dummyCandidates[0]?.id || 'cand-001');
+  const [selectedCandidateId, setSelectedCandidateId] = useState('');
   const [selectedRound, setSelectedRound] = useState('Round 1');
 
   // Search & filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
+  useEffect(() => {
+    let isMounted = true;
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [sessionList, candList] = await Promise.all([
+          fetchInterviewSessionsList(),
+          fetchCandidatesList(),
+        ]);
+        if (isMounted) {
+          setSessions(sessionList || []);
+          setCandidates(candList || []);
+          if (candList && candList.length > 0 && !selectedCandidateId) {
+            setSelectedCandidateId(candList[0].id);
+          }
+        }
+      } catch (e) {
+        console.warn('[InterviewSessions] Load error:', e);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    loadData();
+    return () => { isMounted = false; };
+  }, []);
+
   const handleStartSession = (e) => {
     e.preventDefault();
+    if (!selectedCandidateId && candidates.length > 0) {
+      setSelectedCandidateId(candidates[0].id);
+    }
+    const targetId = selectedCandidateId || (candidates[0] ? candidates[0].id : 'cand-001');
     setShowModal(false);
-    navigate(`/interviews/live?candidateId=${selectedCandidateId}&round=${encodeURIComponent(selectedRound)}`);
+    navigate(`/interviews/live?candidateId=${targetId}&round=${encodeURIComponent(selectedRound)}`);
   };
 
-  const filteredSessions = dummyInterviewSessions.filter((session) => {
+  const filteredSessions = sessions.filter((session) => {
+    const candidateName = session.candidate_name || '';
+    const sessId = session.id || '';
+    const pos = session.position || '';
+    const evalName = session.evaluator_name || '';
+
     const matchSearch =
       searchQuery === '' ||
-      session.candidate_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      session.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      session.position.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      session.evaluator_name.toLowerCase().includes(searchQuery.toLowerCase());
+      candidateName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      sessId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      pos.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      evalName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchStatus = statusFilter === 'All' || session.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -54,7 +93,7 @@ const InterviewSessions = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-white font-display tracking-tight flex items-center gap-3">
             <span>Interview Monitoring Sessions</span>
             <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-normal">
-              {dummyInterviewSessions.length} Total
+              {sessions.length} Total
             </span>
           </h1>
           <p className="text-gray-400 text-xs mt-1">
@@ -63,7 +102,7 @@ const InterviewSessions = () => {
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-surface font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20"
+          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-surface font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20 font-mono"
         >
           <Play className="w-3.5 h-3.5 fill-current" /> Start Live Monitoring
         </button>
@@ -78,7 +117,7 @@ const InterviewSessions = () => {
             placeholder="Search by candidate, session ID, position..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 transition"
+            className="w-full pl-10 pr-4 py-2 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 transition font-mono"
           />
         </div>
 
@@ -86,7 +125,7 @@ const InterviewSessions = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3.5 py-2 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-300 focus:outline-none focus:border-emerald-500/50 transition cursor-pointer"
+            className="px-3.5 py-2 bg-[#0A0E16] border border-white/10 rounded-xl text-xs text-gray-300 focus:outline-none focus:border-emerald-500/50 transition cursor-pointer font-mono"
           >
             <option value="All">All Session Statuses</option>
             <option value="Completed">Completed</option>
@@ -100,7 +139,12 @@ const InterviewSessions = () => {
       </div>
 
       {/* Grid of Interview Sessions */}
-      {filteredSessions.length === 0 ? (
+      {loading ? (
+        <div className="glass-panel rounded-2xl p-12 border border-white/10 text-center space-y-2">
+          <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin mx-auto" />
+          <p className="text-gray-400 text-xs font-mono">Loading sessions from database...</p>
+        </div>
+      ) : filteredSessions.length === 0 ? (
         <div className="glass-panel rounded-2xl p-12 border border-white/10 text-center">
           <Search className="w-8 h-8 text-gray-600 mx-auto mb-3" />
           <p className="text-gray-300 text-sm font-medium">No sessions found matching your query.</p>
@@ -109,8 +153,10 @@ const InterviewSessions = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredSessions.map((session) => {
-            const minutes = Math.floor(session.duration_seconds / 60);
-            const seconds = session.duration_seconds % 60;
+            const minutes = Math.floor((session.duration_seconds || 0) / 60);
+            const seconds = (session.duration_seconds || 0) % 60;
+            const candName = session.candidate_name || 'Candidate';
+
             return (
               <div
                 key={session.id}
@@ -135,13 +181,13 @@ const InterviewSessions = () => {
                   {/* Candidate Profile Header */}
                   <div className="flex items-center gap-3.5 mb-4">
                     <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500/20 to-surface border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-sm font-display shadow-md">
-                      {session.candidate_name.split(' ').map((n) => n[0]).join('')}
+                      {candName.split(' ').map((n) => n[0]).join('') || 'C'}
                     </div>
                     <div>
                       <h3 className="text-white text-sm font-bold group-hover:text-emerald-300 transition-colors">
-                        {session.candidate_name}
+                        {candName}
                       </h3>
-                      <p className="text-gray-400 text-xs">{session.position}</p>
+                      <p className="text-gray-400 text-xs">{session.position || 'Software Engineering'}</p>
                     </div>
                   </div>
 
@@ -149,12 +195,12 @@ const InterviewSessions = () => {
                   <div className="bg-[#0A0E16]/80 rounded-xl p-3.5 border border-white/5 space-y-2 text-xs font-mono text-gray-400 mb-4">
                     <div className="flex justify-between items-center">
                       <span className="text-gray-500">Evaluator:</span>
-                      <span className="text-gray-200 font-medium">{session.evaluator_name}</span>
+                      <span className="text-gray-200 font-medium">{session.evaluator_name || 'System Auto-Proctor'}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-500">Response Rate:</span>
                       <span className="text-emerald-400 font-semibold">
-                        {session.questions_answered} / {session.questions_total} answered
+                        {session.questions_answered || 5} / {session.questions_total || 5} answered
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -163,7 +209,7 @@ const InterviewSessions = () => {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-500">Session ID:</span>
-                      <span className="text-gray-500 text-[10px]">{session.id}</span>
+                      <span className="text-gray-500 text-[10px]">#{session.id?.slice(0, 8)}</span>
                     </div>
                   </div>
                 </div>
@@ -171,17 +217,17 @@ const InterviewSessions = () => {
                 {/* Footer */}
                 <div className="flex items-center justify-between pt-3 border-t border-white/10 text-xs font-mono">
                   <span className="text-gray-500">
-                    {new Date(session.session_date).toLocaleDateString('en-US', {
+                    {new Date(session.session_date || Date.now()).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
                     })}
                   </span>
                   <Link
-                    to={`/interviews/${session.id}`}
+                    to={`/reports/${session.candidate_id}`}
                     className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 font-semibold group/link"
                   >
-                    <span>Inspect</span>
+                    <span>View Dossier</span>
                     <ChevronRight className="w-3.5 h-3.5 group-hover/link:translate-x-0.5 transition-transform" />
                   </Link>
                 </div>
@@ -222,9 +268,9 @@ const InterviewSessions = () => {
                 <select
                   value={selectedCandidateId}
                   onChange={(e) => setSelectedCandidateId(e.target.value)}
-                  className="w-full px-4 py-3 bg-[#0A0E16] border border-white/10 rounded-xl text-gray-200 text-xs focus:outline-none focus:border-emerald-500/50 transition cursor-pointer"
+                  className="w-full px-4 py-3 bg-[#0A0E16] border border-white/10 rounded-xl text-gray-200 text-xs focus:outline-none focus:border-emerald-500/50 transition cursor-pointer font-mono"
                 >
-                  {dummyCandidates.map((c) => (
+                  {candidates.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.full_name} — {c.position} ({c.status})
                     </option>
@@ -239,7 +285,7 @@ const InterviewSessions = () => {
                 <select
                   value={selectedRound}
                   onChange={(e) => setSelectedRound(e.target.value)}
-                  className="w-full px-4 py-3 bg-[#0A0E16] border border-white/10 rounded-xl text-gray-200 text-xs focus:outline-none focus:border-emerald-500/50 transition cursor-pointer"
+                  className="w-full px-4 py-3 bg-[#0A0E16] border border-white/10 rounded-xl text-gray-200 text-xs focus:outline-none focus:border-emerald-500/50 transition cursor-pointer font-mono"
                 >
                   <option value="Round 1">Round 1 (Initial Screening)</option>
                   <option value="Round 2">Round 2 (Technical & Behavioral Deep-Dive)</option>
@@ -267,7 +313,7 @@ const InterviewSessions = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-surface font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20"
+                  className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-surface font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20 font-mono"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" /> Launch Live Session
                 </button>
