@@ -1,26 +1,31 @@
 // ============================================================
 // Modern Matrix — Whisper ASR Model API Client
-// Implements FR-12: Transcription Engine
+// Implements Transcription & Linguistic Scoring Engine
 // Calls the trained Whisper model hosted via Cloudflare Tunnel
 //
-// API Response Format:
+// Expected API Response Formats:
 // {
-//   success: true,
-//   filename: "P5.wav",
-//   transcript: "So please tell me about yourself...",
-//   is_relevant: true,
-//   similarity_score: 0.5526,   // 0.0 - 1.0
-//   predicted_score: 4.73       // 1.0 - 10.0
+//   "filename": "P5.wav",
+//   "transcript": "So please tell me about yourself...",
+//   "is_relevant": true,
+//   "similarity_score": 0.5526,   // 0.0 - 1.0 (or 0 - 100)
+//   "predicted_score": 4.73       // 1.0 - 10.0 (or 0 - 100)
 // }
 // ============================================================
 
 const WHISPER_API_URL = import.meta.env.VITE_WHISPER_API_URL;
 
 /**
- * Sends a WAV audio blob to the trained Whisper ASR model API.
- * @param {Blob} wavBlob - A 16kHz Mono PCM WAV blob (output of preprocessAudioToWav)
- * @returns {Promise<{ success: boolean, filename: string, transcript: string, is_relevant: boolean, similarity_score: number, predicted_score: number }>}
- * @throws {Error} if the API URL is not configured, the network request fails, or the API returns a non-OK status
+ * Sends an audio blob to the trained Whisper ASR model API.
+ * @param {Blob} wavBlob - A 16kHz Mono PCM WAV blob
+ * @returns {Promise<{
+ *   success: boolean,
+ *   filename: string,
+ *   transcript: string,
+ *   is_relevant: boolean,
+ *   similarity_score: number,
+ *   predicted_score: number
+ * }>}
  */
 export async function callWhisperAPI(wavBlob) {
   if (!WHISPER_API_URL || WHISPER_API_URL.includes('your-cloudflare-link')) {
@@ -36,17 +41,52 @@ export async function callWhisperAPI(wavBlob) {
   });
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => 'Unknown error');
-    throw new Error(`Whisper API returned HTTP ${response.status}: ${errorText}`);
+    let errorText = `HTTP ${response.status}`;
+    try {
+      const errJson = await response.json();
+      errorText = errJson.detail || errJson.error || errorText;
+    } catch (_) {
+      errorText = await response.text().catch(() => errorText);
+    }
+    throw new Error(`Whisper API error: ${errorText}`);
   }
 
   const result = await response.json();
 
-  if (!result.success) {
+  if (result.success === false) {
     throw new Error(`Whisper API reported failure: ${JSON.stringify(result)}`);
   }
 
-  return result;
+  // Robust field normalization
+  const transcript = result.transcript ?? result.text ?? result.transcription ?? '';
+  let predictedScore = result.predicted_score ?? result.score ?? result.prediction ?? null;
+  let similarityScore = result.similarity_score ?? result.similarity ?? result.relevance_score ?? null;
+  let isRelevant = result.is_relevant ?? result.relevant ?? null;
+
+  if (predictedScore != null) {
+    predictedScore = Number(predictedScore);
+  }
+  if (similarityScore != null) {
+    similarityScore = Number(similarityScore);
+    // If similarity_score is returned on 0-100 scale, normalize to 0.0-1.0
+    if (similarityScore > 1 && similarityScore <= 100) {
+      similarityScore = similarityScore / 100;
+    }
+  }
+
+  if (isRelevant === null) {
+    isRelevant = similarityScore != null ? similarityScore >= 0.45 : true;
+  }
+
+  return {
+    success: true,
+    filename: result.filename || 'interview_audio.wav',
+    transcript: transcript.trim(),
+    predicted_score: predictedScore,
+    similarity_score: similarityScore,
+    is_relevant: Boolean(isRelevant),
+    raw: result,
+  };
 }
 
 /**

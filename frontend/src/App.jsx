@@ -89,6 +89,8 @@ function App() {
           />
 
           {/* Candidate Evaluation & Comparisons */}
+          <Route path="/interview" element={<Navigate to="/interviews/live" replace />} />
+          <Route path="/interview/:id" element={<Navigate to="/interviews/:id" replace />} />
           <Route
             path="/reports"
             element={

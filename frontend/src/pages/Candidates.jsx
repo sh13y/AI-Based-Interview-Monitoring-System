@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { dummyCandidates } from '../lib/dummyData';
 import AddCandidateModal from '../components/Modals/AddCandidateModal';
+import ManageRoleWeightsModal from '../components/Modals/ManageRoleWeightsModal';
 import EditCandidateModal from '../components/Modals/EditCandidateModal';
 import CandidateDetailModal from '../components/Modals/CandidateDetailModal';
 import { supabase, isSupabaseConfigured, writeAuditLog } from '../lib/supabase';
@@ -66,6 +67,7 @@ const Candidates = () => {
 
   const [candidates, setCandidates] = useState(getStoredCandidates);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showRoleWeightsModal, setShowRoleWeightsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState(null);
@@ -448,6 +450,14 @@ const Candidates = () => {
           </button>
         </div>
       </div>
+
+      {/* Job Role Evaluation Weights Modal */}
+      {showRoleWeightsModal && (
+        <ManageRoleWeightsModal
+          onClose={() => setShowRoleWeightsModal(false)}
+          onSaved={fetchCandidates}
+        />
+      )}
 
       {/* [FR-03: Add Candidate Modal] */}
       {showAddModal && (

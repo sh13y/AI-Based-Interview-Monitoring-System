@@ -5,7 +5,8 @@
 //   [FR-06: INITIATE NEW LIVE MONITORING SESSION]
 // ==============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Link, useNavigate } from 'react-router-dom';
 import { Play, Eye, Clock, CheckCircle2, AlertCircle, X, UserCheck, Video, Search, Filter } from 'lucide-react';
 import { dummyInterviewSessions, dummyCandidates } from '../lib/dummyData';
@@ -19,12 +20,71 @@ const statusColors = {
 const InterviewSessions = () => {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
+  const [candidateList, setCandidateList] = useState(dummyCandidates);
+  const [sessionsList, setSessionsList] = useState(dummyInterviewSessions);
   const [selectedCandidateId, setSelectedCandidateId] = useState(dummyCandidates[0]?.id || 'cand-001');
   const [selectedRound, setSelectedRound] = useState('Round 1');
 
   // FR-18: Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('mm_candidates_list');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCandidateList(parsed);
+          setSelectedCandidateId(parsed[0].id);
+        }
+      }
+    } catch (_) {}
+
+    if (isSupabaseConfigured()) {
+      Promise.allSettled([
+        supabase.from('candidates').select('*').order('created_at', { ascending: false }),
+        supabase.from('interview_sessions').select('*, candidates(*)').order('session_date', { ascending: false }),
+      ]).then(([candRes, sessRes]) => {
+        if (candRes.status === 'fulfilled' && candRes.value.data?.length > 0) {
+          const map = new Map();
+          candRes.value.data.forEach((c) => map.set(c.id, c));
+          try {
+            const stored = localStorage.getItem('mm_candidates_list');
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              parsed.forEach((c) => {
+                if (!map.has(c.id)) map.set(c.id, c);
+              });
+            }
+          } catch (_) {}
+          const merged = Array.from(map.values());
+          setCandidateList(merged);
+        }
+
+        if (sessRes.status === 'fulfilled' && sessRes.value.data?.length > 0) {
+          const dbSessions = sessRes.value.data.map((s) => ({
+            id: s.id,
+            candidate_id: s.candidate_id,
+            candidate_name: s.candidates?.full_name || 'Candidate',
+            position: s.position || s.candidates?.position || 'Software Engineer',
+            evaluator_name: 'Kasun Perera',
+            session_date: s.session_date ? s.session_date.split('T')[0] : '2026-09-30',
+            duration_seconds: s.duration_seconds || 180,
+            status: s.status || 'Completed',
+            score: s.candidates?.score ?? 88,
+          }));
+
+          const sMap = new Map();
+          dbSessions.forEach((s) => sMap.set(s.id, s));
+          dummyInterviewSessions.forEach((s) => {
+            if (!sMap.has(s.id)) sMap.set(s.id, s);
+          });
+          setSessionsList(Array.from(sMap.values()));
+        }
+      });
+    }
+  }, []);
 
   const handleStartSession = (e) => {
     e.preventDefault();
@@ -33,7 +93,7 @@ const InterviewSessions = () => {
   };
 
   // FR-18: Filter sessions by search query and status
-  const filteredSessions = dummyInterviewSessions.filter((session) => {
+  const filteredSessions = sessionsList.filter((session) => {
     const matchSearch =
       searchQuery === '' ||
       session.candidate_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -194,7 +254,7 @@ const InterviewSessions = () => {
                   onChange={(e) => setSelectedCandidateId(e.target.value)}
                   className="w-full px-4 py-3 bg-[#2a2a2a] border border-gray-700 rounded-lg text-gray-200 text-sm focus:outline-none focus:border-[#a8b88c] transition cursor-pointer"
                 >
-                  {dummyCandidates.map((c) => (
+                  {candidateList.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.full_name} ({c.position}) - Status: {c.status}
                     </option>
